@@ -1,17 +1,78 @@
 [project]
 name = "skill-radar"
 version = "0.1.0"
-description = "Add your description here"
+description = "Skill Intelligence Engine that detects emerging skills, quantifies demand-supply gaps, and recommends optimal career upskilling paths."
 readme = "README.md"
+license = { text = "MIT" }
 authors = [
-    { name = "ELAMINE Mohammed", email = "elamine.mohammed.14@gmail.com" }
+  { name = "ELAMINE Mohammed", email = "elamine.mohammed.14@gmail.com" },
+  { name = "RHIATI HAZIME Lina", email = "lina.rhiati2@gmail.com" }
 ]
+keywords = ["skill", "radar", "intelligence", "emerging-skills", "career"]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "python-dotenv>=1.0.0",
+]
 
 [project.scripts]
-skill-radar = "skill_radar:main"
+skill-radar = "skill_radar.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.9.26,<0.10.0"]
-build-backend = "uv_build"
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.19.1",
+  "pre-commit>=4.5.1",
+  "pytest>=9.0.2",
+  "pytest-cov>=5.0",
+  "ruff>=0.15.2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "F", # pyflakes
+    "I", # isort
+    "B", # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PTH", # flake8-use-pathlib
+    "RUF", # Ruff-specific rules
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+    "B008", # do not perform function calls in argument defaults
+    "B905", # zip without explicit strict
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_return_any = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+mypy_path = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
