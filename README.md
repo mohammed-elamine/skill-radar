@@ -67,6 +67,54 @@ skill-radar/
 
 ---
 
+# System Requirements
+
+The project requires the following system dependencies:
+
+- Python 3.11+
+- uv
+- Java 17+ (required by Spark / PySpark 3.5)
+
+### Verify Java installation
+
+```bash
+java -version
+```
+
+You should see version 17 or higher.
+
+## Install Java 17 (if missing)
+
+### macOS (Homebrew)
+```bash
+brew install --cask temurin@17
+```
+
+Then ensure `JAVA_HOME` is set:
+```bash
+echo 'export JAVA_HOME=$(/usr/libexec/java_home -v 17)' >> ~/.zshrc
+echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Verify:
+```bash
+java -version
+```
+
+### Ubuntu / Debian
+```bash
+sudo apt update
+sudo apt install openjdk-17-jdk
+```
+
+Verify:
+```bash
+java -version
+```
+
+---
+
 # Quick Start
 
 ## 1. Install uv (if not already installed)

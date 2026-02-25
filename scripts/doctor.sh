@@ -116,7 +116,36 @@ touch "$DATA_DIR/.doctor_write_test" 2>/dev/null || {
 rm -f "$DATA_DIR/.doctor_write_test"
 echo "✅ Data directory OK (exists & writable): $DATA_DIR"
 
-# 9) Optional live API check
+# 9) Java/Spark check (only if pyspark is installed, as it's an optional dependency)
+if uv run python -c "import importlib; import sys; sys.exit(0 if importlib.util.find_spec('pyspark') else 1)" >/dev/null 2>&1; then
+  echo "== Spark prerequisite check =="
+  if ! command -v java >/dev/null 2>&1; then
+    echo "❌ Java not found, but pyspark is installed."
+    echo "Install Java 17+ (Spark 3.5 requires it)."
+    exit 1
+  fi
+
+  JAVA_VER_RAW="$(java -version 2>&1 | head -n 1)"
+  echo "java -version: $JAVA_VER_RAW"
+
+  # Extract major version (handles formats like 'openjdk version "17.0.10"' or 'java version "17.0.2"')
+  JAVA_MAJOR="$(java -version 2>&1 | head -n 1 | sed -E 's/.*version "([0-9]+).*/\1/')"
+  if [[ -z "${JAVA_MAJOR:-}" ]]; then
+    echo "⚠️  Could not parse Java version. Ensure Java 17+ is installed."
+    exit 1
+  fi
+
+  if (( JAVA_MAJOR < 17 )); then
+    echo "❌ Java $JAVA_MAJOR detected. Java 17+ is required for Spark 3.5."
+    exit 1
+  fi
+
+  echo "✅ Java requirement OK: $JAVA_MAJOR"
+else
+  echo "pyspark not installed; skipping Java check."
+fi
+
+# 10) Optional live API check
 if [[ "$LIVE" -eq 1 ]]; then
   echo "== Live API check (--live) =="
   # Minimal request to avoid large payloads; do not print response content
