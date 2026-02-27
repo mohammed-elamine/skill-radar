@@ -11,6 +11,9 @@ authors = [
 keywords = ["skill", "radar", "intelligence", "emerging-skills", "career"]
 requires-python = ">=3.11"
 dependencies = [
+  "dbt-core>=1.11.6",
+  "dbt-duckdb>=1.10.1",
+  "duckdb>=1.4.4",
   "python-dotenv>=1.0.0",
   "requests>=2.32.5",
 ]
