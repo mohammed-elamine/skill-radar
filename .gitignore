@@ -98,3 +98,8 @@ temp/
 # Documentation
 # ===============================
 guides/
+
+# ===============================
+# Local temporary files for skill radar
+# ===============================
+src/skill_radar/local_tmp/
