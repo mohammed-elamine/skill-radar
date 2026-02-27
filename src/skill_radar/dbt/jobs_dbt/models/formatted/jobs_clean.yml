@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: jobs_clean
+    description: "Formatted and normalized job postings extracted from Adzuna"
+    columns:
+      - name: job_id
+        description: "Unique identifier of a job posting"
+        tests:
+          - not_null
+          - unique
