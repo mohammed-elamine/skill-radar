@@ -2,7 +2,7 @@
 
 Skill Radar is a production-oriented data engineering project that analyzes job market data to extract actionable insights about technology demand, salary trends, and skill evolution.
 
-The system ingests fresh job postings daily, processes them through a structured pipeline, and exposes reliable KPIs for analysis and visualization.
+The system ingests fresh job postings daily, processes them through a structured lakehouse pipeline, and exposes reliable KPIs for analysis and visualization.
 
 This project is built as part of a Big Data master thesis with a strong emphasis on:
 
@@ -15,239 +15,171 @@ This project is built as part of a Big Data master thesis with a strong emphasis
 
 ---
 
-# Project Overview
+# Architecture Overview
 
-Skill Radar builds a complete data pipeline:
+Skill Radar follows a **modern lakehouse architecture**:
 
-1. Ingestion
-   - Fetch job postings from public APIs (e.g., Adzuna)
-   - Daily incremental ingestion
-   - Idempotent logic (no duplicates)
+- **Object Storage**: MinIO (S3-compatible)
+- **Table Format**: Apache Iceberg
+- **Compute Engine**: Apache Spark
+- **Orchestration (future)**: Airflow
+- **Serving (future)**: Elasticsearch + Kibana
 
-2. Processing
-   - Normalize job data
-   - Extract structured skill signals
-   - Clean and enrich metadata
+The lake follows a structured layer model:
 
-3. Storage
-   - Structured storage in the data layer
-   - Versioned and reproducible datasets
+- `bronze` → raw ingestion
+- `silver` → cleaned, normalized
+- `gold` → analytical datasets
 
-4. Analytics
-   - Compute KPIs:
-     - Skill demand trends
-     - Salary distribution by skill
-     - Geographic demand patterns
-     - Emerging skills detection
-
-5. Validation
-   - Type-checking
-   - Linting
-   - Unit testing
-   - CI validation
+Iceberg warehouse location:
+```bash
+s3a://skillradar-lake/warehouse
+```
 
 ---
 
 # Repository Structure
-
-```
-
+```bash
 skill-radar/
 │
-├── src/skill_radar/       # Core package
-├── tests/                 # Unit tests
-├── scripts/               # Environment & tooling scripts
-├── data/                  # Local data storage (ignored by git)
-├── pyproject.toml         # Project configuration
-├── uv.lock                # Locked dependencies
-├── Makefile               # Developer workflow
-└── .github/workflows/     # CI pipeline
-
+├── src/skill_radar/         # Core package (business logic)
+├── jobs/                    # Spark jobs (batch processing)
+├── configs/                 # Spark configuration
+├── tests/
+│   ├── unit/
+│   └── integration/
+├── scripts/                 # Environment & tooling scripts
+├── docs/architecture/       # Architecture documentation
+├── docker-compose.yml       # Local lakehouse stack
+├── pyproject.toml
+├── uv.lock
+├── Makefile
+└── .github/workflows/
 ```
 
 ---
 
 # System Requirements
 
-The project requires the following system dependencies:
-
 - Python 3.11+
-- uv
-- Java 17+ (required by Spark / PySpark 3.5)
-
-### Verify Java installation
-
-```bash
-java -version
-```
-
-You should see version 17 or higher.
-
-## Install Java 17 (if missing)
-
-### macOS (Homebrew)
-```bash
-brew install --cask temurin@17
-```
-
-Then ensure `JAVA_HOME` is set:
-```bash
-echo 'export JAVA_HOME=$(/usr/libexec/java_home -v 17)' >> ~/.zshrc
-echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-Verify:
-```bash
-java -version
-```
-
-### Ubuntu / Debian
-```bash
-sudo apt update
-sudo apt install openjdk-17-jdk
-```
-
-Verify:
-```bash
-java -version
-```
+- Docker + Docker Compose
+- uv (dependency manager)
 
 ---
 
 # Quick Start
 
-## 1. Install uv (if not already installed)
+## 1. Install uv
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-````
+```
 
-or on macOS:
+or
 
 ```bash
 brew install uv
 ```
 
----
-
 ## 2. Bootstrap the Project
-
 ```bash
 make bootstrap
 ```
 
+This installs:
+- Dependencies
+- Pre-commit hooks
+- Validates environment
+
+## 3. Start the Lakehouse Stack
+```bash
+make infra
+```
+
 This will:
+- Start MinIO
+- Start Spark
+- Run Iceberg smoke test
 
-* Install all dependencies
-* Install pre-commit hooks
-* Validate your environment
+You can inspect MinIO at http://localhost:9000 with credentials from `.env`.
 
----
-
-## 3. Verify Environment
-
-At any time, run:
-
+## 4. Validate Everything
 ```bash
 make doctor
 ```
 
-This checks:
-
-* Python version (3.11 required)
-* Dependency installation
-* Required environment variables
-* Package import
-* Data directory permissions
-
-If issues are detected, you can attempt automatic repair:
-
-```bash
-make doctor-fix
-```
+Checks:
+- Local tooling
+- Docker services
+- Iceberg connectivity
+- Spark job execution
 
 ---
 
 # Development Workflow
 
-During development:
-
+During development
 ```bash
-make fix
+make quality
 ```
 
-Before opening a Pull Request:
-
+Before pushing
 ```bash
-make check
+make ci
 ```
 
-This validates:
+CI runs:
+- Lint
+- Format check
+- Type-check
+- Unit tests
+- Integration tests
 
-* Linting
-* Formatting
-* Type checking
-* Tests
+---
 
-All checks must pass before merging.
+# Lakehouse Layout
 
-CI enforces the same validation rules automatically.
+Storage contract:
+```bash
+data/<layer>/<domain>/<source>/<entity>/<version_or_dt>/<partitions...>/
+```
+
+Examples:
+- `data/bronze/labour_market/esco/skills/version=2025-11-15/lang=fr/...`
+- `data/silver/labour_market/adzuna/job_postings/dt=2026-02-27/country=gb/...`
+- `data/gold/skill_radar/skill_index/version=2025-11-15/lang=fr/...`
+
+See: [docs/architecture/lakehouse_layout.md](docs/architecture/lakehouse_layout.md)
 
 ---
 
 # Environment Variables
 
-Create a `.env` file at the project root:
+Create `.env` from `.env.example` and fill in the required values (e.g., `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`).
 
-```
-ADZUNA_APP_ID=your_id
-ADZUNA_APP_KEY=your_key
-```
-
-Never commit secrets.
+These are only required for live ingestion (not infra setup).
 
 ---
 
 # Design Principles
 
-Skill Radar follows a production-style engineering mindset:
-
-* Deterministic builds (uv lockfile)
-* Strict CI gates
-* Explicit dependency management
-* Clean Git history (Conventional Commits)
-* Environment validation via `doctor`
-* Separation of fix vs check commands
-
----
-
-# Why This Project Matters
-
-Most job analytics tools provide surface-level statistics.
-
-Skill Radar aims to provide:
-
-* Reliable trend detection
-* Skill evolution tracking
-* Actionable insights for developers and decision-makers
-* Clean, reproducible engineering practices
-
-It is not just a data analysis notebook — it is a structured, professional data pipeline.
+**Skill Radar** follows production-style discipline:
+- Deterministic builds (`uv.lock`)
+- Strict CI gates
+- Dockerized infrastructure
+- Iceberg transactional storage
+- Clear separation of unit vs integration tests
+- Makefile as single developer interface
 
 ---
 
-# Contributing
+# Current Milestone
 
-See `CONTRIBUTING.md` for:
-
-* Branching model
-* Commit conventions
-* Quality standards
-* PR requirements
+- **Milestone 1** — Lakehouse Infrastructure Bootstrap
+- **Milestone 2** — Bronze Ingestion (ESCO + Adzuna)
 
 ---
 
 # License
 
-MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
