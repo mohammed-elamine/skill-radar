@@ -98,11 +98,3 @@ temp/
 # Documentation
 # ===============================
 guides/
-
-
-
-# ===============================
-# Dbt Artifacts
-# ===============================
-src/skill_radar/dbt/**/target/
-src/skill_radar/dbt/**/logs/
