@@ -35,7 +35,7 @@ After cloning the repository, run:
 
 ```bash
 make bootstrap
-````
+```
 
 This will:
 
@@ -70,7 +70,9 @@ This performs a read-only health check of:
 ### Runtime Sanity
 
 * Package import (`skill_radar`)
-* Data directory existence and write permissions
+* Docker availability
+* MinIO health
+* Spark + Iceberg smoke test
 
 If any check fails, the script prints clear and actionable instructions.
 
@@ -123,22 +125,41 @@ Do **not** modify `uv.lock` manually.
 
 # 3. Running the Project
 
-Run CLI:
+## Local Infrastructure
+
+Start lakehouse stack:
 
 ```bash
-uv run skill-radar
+make infra
 ```
 
-Run a module:
-
+Reset stack completely:
 ```bash
-uv run python -m skill_radar.<module>
+make infra-reset
 ```
 
-Run tests:
-
+Validate infrastructure:
 ```bash
-uv run pytest -q
+make smoke
+```
+
+⸻
+
+## Running Tests
+
+Unit tests:
+```bash
+make test
+```
+
+Integration tests (requires Docker infra running):
+```bash
+make itest
+```
+
+Full validation (what CI runs):
+```bash
+make ci
 ```
 
 ---
@@ -161,7 +182,7 @@ uv add --dev <package>
 
 Commit both:
 
-```
+```bash
 pyproject.toml
 uv.lock
 ```

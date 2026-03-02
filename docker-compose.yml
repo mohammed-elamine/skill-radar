@@ -1,0 +1,248 @@
+# docker-compose.yml
+#
+# Local-first lakehouse stack (production-aligned):
+# - MinIO (S3-compatible storage) + init buckets
+# - Spark "submit" container configured for S3A + Iceberg (Hadoop catalog)
+# - Optional: Airflow (profile: airflow)
+# - Optional: Elasticsearch + Kibana (profile: search) — add when you have Gold tables to index
+#
+# Data layout inside the lake bucket:
+#   s3a://skillradar-lake/data/<layer>/<domain>/<source>/<entity>/...
+#
+# Usage:
+#   docker compose up -d
+#   docker compose --profile airflow up -d
+#   docker compose --profile search up -d
+#
+# Then run Spark jobs from the spark container:
+#   docker compose exec spark bash
+#   spark-submit /opt/skillradar/jobs/examples/iceberg_smoke_test.py
+
+name: skillradar
+
+services:
+  # -----------------------------
+  # 1) S3-compatible object store
+  # -----------------------------
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # Bucket initialization (idempotent)
+  mc:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      LAKE_BUCKET: ${LAKE_BUCKET:-skillradar-lake}
+      LOGS_BUCKET: ${LOGS_BUCKET:-skillradar-logs}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD;
+      mc mb -p local/$$LAKE_BUCKET || true;
+      mc mb -p local/$$LOGS_BUCKET || true;
+      echo 'MinIO buckets ensured: ' $$LAKE_BUCKET ', ' $$LOGS_BUCKET;
+      "
+
+  # -----------------------------
+  # 2) Spark submit node
+  # -----------------------------
+  # This init container runs as root only to prepare the volume for the Spark container
+  # (which can run as non-root to avoid permission issues with mounted volumes).
+  spark-ivy-init:
+    image: busybox:1.36
+    depends_on:
+      mc:
+        condition: service_completed_successfully
+    user: "0:0"
+    volumes:
+      - spark_ivy:/tmp/.ivy2
+    command: >
+      sh -lc "
+      mkdir -p /tmp/.ivy2/cache /tmp/.ivy2/jars &&
+      chown -R ${SPARK_UID:-185}:${SPARK_GID:-185} /tmp/.ivy2 &&
+      chmod -R u+rwX,g+rwX /tmp/.ivy2
+      "
+
+  spark:
+    image: spark:3.5.7-python3
+    depends_on:
+      minio:
+        condition: service_healthy
+      mc:
+        condition: service_completed_successfully
+      spark-ivy-init:
+        condition: service_completed_successfully
+
+    # Run as root to avoid permission issues with mounted volumes (optional, but convenient for local dev)
+    user: "0:0"
+
+    environment:
+      # Credentials used by Hadoop S3A connector to speak to MinIO (Spark reads these env vars)
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+
+      # Make your Python package importable (src/ layout)
+      PYTHONPATH: /opt/skillradar/src
+
+      # Add Spark and Hadoop CLI tools to PATH (optional, for debugging)
+      PATH: /opt/spark/bin:${PATH}
+
+      # Optional: speed up downloads / set ivy cache in a mounted volume
+      SPARK_SUBMIT_OPTS: "-Divy.cache.dir=/tmp/.ivy2 -Divy.home=/tmp/.ivy2"
+
+    volumes:
+      # Jobs and configs are mounted so we can iterate without rebuilding the image.
+      - ./jobs:/opt/skillradar/jobs
+      # Python package (library code)
+      - ./src:/opt/skillradar/src
+      # Shared configs folder (optional to keep)
+      - ./configs:/opt/skillradar/configs
+
+      # Make Spark automatically pick up defaults (no need for --properties-file)
+      - ./configs/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+
+      # Persist Ivy cache so we don't redownload jars each time
+      - spark_ivy:/tmp/.ivy2
+
+    entrypoint: ["/bin/bash", "-lc"]
+    command: >
+      "
+      echo 'Spark container ready.';
+      echo 'Try: spark-submit /opt/skillradar/jobs/examples/iceberg_smoke_test.py';
+      tail -f /dev/null
+      "
+
+  # -----------------------------
+  # 3) Optional: Airflow (profile)
+  # -----------------------------
+  postgres:
+    profiles: ["airflow"]
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${AIRFLOW_DB_USER:-airflow}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD:-airflow}
+      POSTGRES_DB: ${AIRFLOW_DB_NAME:-airflow}
+    ports:
+      - "${AIRFLOW_DB_PORT:-5432}:5432"
+    volumes:
+      - airflow_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER:-airflow} -d ${AIRFLOW_DB_NAME:-airflow}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  airflow-init:
+    profiles: ["airflow"]
+    image: apache/airflow:2.9.3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB_NAME:-airflow}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+    command: >
+      bash -lc "
+      airflow db migrate &&
+      airflow users create
+        --username ${AIRFLOW_ADMIN_USER:-admin}
+        --password ${AIRFLOW_ADMIN_PASSWORD:-admin}
+        --firstname Admin --lastname User
+        --role Admin
+        --email admin@example.com || true
+      "
+
+  airflow-webserver:
+    profiles: ["airflow"]
+    image: apache/airflow:2.9.3
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB_NAME:-airflow}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    ports:
+      - "${AIRFLOW_WEB_PORT:-8080}:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+    command: bash -lc "airflow webserver"
+
+  airflow-scheduler:
+    profiles: ["airflow"]
+    image: apache/airflow:2.9.3
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      spark:
+        condition: service_started
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB_NAME:-airflow}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+    command: bash -lc "airflow scheduler"
+
+  # -----------------------------
+  # 4) Optional: Elasticsearch + Kibana (profile)
+  # -----------------------------
+  elasticsearch:
+    profiles: ["search"]
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+    ports:
+      - "${ES_PORT:-9200}:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  kibana:
+    profiles: ["search"]
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+
+volumes:
+  minio_data:
+  spark_ivy:
+  airflow_db:
+  airflow_logs:
+  es_data:
