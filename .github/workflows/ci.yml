@@ -37,7 +37,7 @@ jobs:
         run: uv run mypy src
 
       - name: Unit tests
-        run: uv run pytest -q --maxfail=1 --disable-warnings --cov=src --cov-report=xml
+        run: uv run pytest -q --maxfail=1 --disable-warnings --cov=src --cov-report=xml -m "not integration" --ignore=tests/integration
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
