@@ -12,7 +12,6 @@ keywords = ["skill", "radar", "intelligence", "emerging-skills", "career"]
 requires-python = ">=3.11"
 dependencies = [
   "python-dotenv>=1.0.0",
-  "requests>=2.32.5",
 ]
 
 [project.scripts]
