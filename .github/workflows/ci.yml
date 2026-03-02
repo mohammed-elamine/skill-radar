@@ -27,11 +27,6 @@ jobs:
       - name: Install dependencies (incl. dev)
         run: uv sync --dev
 
-      - name: Verify secrets are present
-        run: |
-            test -n "${ADZUNA_APP_ID}" && echo "ADZUNA_APP_ID set"
-            test -n "${ADZUNA_APP_KEY}" && echo "ADZUNA_APP_KEY set"
-
       - name: Pre-commit (all hooks)
         run: uv run pre-commit run --all-files
 
