@@ -50,14 +50,14 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      LAKE_BUCKET: ${LAKE_BUCKET:-skillradar-lake}
-      LOGS_BUCKET: ${LOGS_BUCKET:-skillradar-logs}
+      SKILLRADAR_S3_BUCKET: ${SKILLRADAR_S3_BUCKET:-skillradar-lake}
+      SKILLRADAR_S3_LOGS_BUCKET: ${SKILLRADAR_S3_LOGS_BUCKET:-skillradar-logs}
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD;
-      mc mb -p local/$$LAKE_BUCKET || true;
-      mc mb -p local/$$LOGS_BUCKET || true;
-      echo 'MinIO buckets ensured: ' $$LAKE_BUCKET ', ' $$LOGS_BUCKET;
+      mc mb -p local/$$SKILLRADAR_S3_BUCKET || true;
+      mc mb -p local/$$SKILLRADAR_S3_LOGS_BUCKET || true;
+      echo 'MinIO buckets ensured: ' $$SKILLRADAR_S3_BUCKET ', ' $$SKILLRADAR_S3_LOGS_BUCKET;
       "
 
   # -----------------------------

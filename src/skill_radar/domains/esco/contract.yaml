@@ -1,0 +1,44 @@
+dataset: esco
+
+artifact:
+  type: zip
+  content: classification
+  file_type: csv
+
+supported_languages:
+  - fr
+  - en
+
+version_pattern: "^v\\d+\\.\\d+\\.\\d+$"
+
+entities:
+  - name: skills
+    filename_pattern: "skills_{lang}.csv"
+    required_columns:
+      - preferredLabel
+      - altLabels
+      - hiddenLabels
+      - description
+      - skillType: ["skill/competence", "knowledge"]
+      - reuseLevel: ["sector-specific", "occupation-specific", "cross-sector", "transversal"]
+
+  - name: occupations
+    filename_pattern: "occupations_{lang}.csv"
+    required_columns:
+      - preferredLabel
+      - altLabels
+      - hiddenLabels
+      - description
+
+  - name: relations
+    filename_pattern: "occupationSkillRelations_{lang}.csv"
+    required_columns:
+      - occupationLabel
+      - relationType
+      - skillType
+      - skillLabel
+
+source:
+  provider: ESCO
+  acquisition_method: manual_download
+  provider_url: https://esco.ec.europa.eu
