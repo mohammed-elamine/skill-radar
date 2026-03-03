@@ -112,21 +112,21 @@ fmt: ## Check formatting
 type: ## Run mypy type checking
 	$(call RUN_STEP,mypy type-check,,uv run mypy src)
 
-test: ## Run unit tests
-	$(call RUN_STEP,pytest (unit),,uv run pytest -q)
+utest: ## Run unit tests
+	$(call RUN_STEP,pytest (unit),,uv run pytest -q -m "not integration" --ignore=tests/integration)
 
 check: ## Run all local code checks
 	$(SILENT)$(MAKE) lint VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) fmt VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) type VERBOSE=$(VERBOSE)
-	$(SILENT)$(MAKE) test VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) utest VERBOSE=$(VERBOSE)
 	$(SILENT)bash -lc '$(call UI_OK,All local checks passed.)'
 
 quality: ## Run formatting fixes + core checks
 	$(SILENT)$(MAKE) fix VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) lint VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) type VERBOSE=$(VERBOSE)
-	$(SILENT)$(MAKE) test VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) utest VERBOSE=$(VERBOSE)
 	$(SILENT)bash -lc '$(call UI_OK,Quality pipeline passed.)'
 
 precommit: ## Run all pre-commit hooks
@@ -153,7 +153,7 @@ doctor-infra-only: ## Only docker infra + smoke
 # Docker Compose (Infrastructure)
 # ==========================================
 
-.PHONY: up down reset ps logs smoke itest
+.PHONY: up down reset ps logs smoke itest test-all
 
 up: ## Start local infrastructure
 	$(call RUN_STEP,docker compose up -d,,docker compose up -d)
@@ -180,6 +180,11 @@ smoke: ## Run Spark + Iceberg smoke test (logs captured under logs/)
 
 itest: ## Run integration tests (requires docker infra up)
 	$(call RUN_STEP,pytest (integration),,uv run pytest -m integration -q)
+
+test-all: ## Run all tests (unit + integration)
+	$(SILENT)$(MAKE) utest VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) itest VERBOSE=$(VERBOSE)
+	$(SILENT)bash -lc '$(call UI_OK,All tests passed.)'
 
 # ==========================================
 # Grouped Commands
