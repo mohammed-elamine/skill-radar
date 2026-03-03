@@ -1,0 +1,28 @@
+platform:
+  environment: local
+
+storage:
+  s3:
+    bucket: skillradar-lake
+    endpoint: http://localhost:9000
+    region: fr
+    secure: false
+
+lake:
+  root_prefix: data
+  layers:
+    landing: landing
+    bronze: bronze
+    silver: silver
+    gold: gold
+
+manifest:
+  schema_version: "1.0.0"
+
+logging:
+  level: INFO
+  log_dir: logs
+  console_format: text
+  file_format: json
+  upload: false
+  logs_bucket: skillradar-logs
