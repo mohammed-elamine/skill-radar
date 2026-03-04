@@ -39,5 +39,29 @@ class Settings:
             duckdb_path=duckdb_path,
         )
 
+    def with_data_root(self, data_root: str | Path) -> Settings:
+        return type(self)(
+            adzuna_app_id=self.adzuna_app_id,
+            adzuna_app_key=self.adzuna_app_key,
+            data_root=Path(data_root).expanduser().resolve(),
+            duckdb_path=self.duckdb_path,
+        )
+
+    @property
+    def formatted_jobs_path(self) -> Path:
+        return self.data_root / "formatted" / "jobs_clean.parquet"
+
+    @property
+    def esco_terms_path(self) -> Path:
+        return self.data_root / "formatted" / "esco_skill_terms.parquet"
+
+    @property
+    def matches_output_root(self) -> Path:
+        return self.data_root / "curated" / "text" / "job_skill_matches"
+
+    @property
+    def kpis_output_root(self) -> Path:
+        return self.data_root / "curated" / "kpis" / "skill_kpis_daily"
+
 
 settings = Settings.from_env()
