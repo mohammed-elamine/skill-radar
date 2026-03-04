@@ -10,7 +10,7 @@ class S3Config(BaseModel):
 
     bucket: str = "skillradar-lake"
     endpoint: str = "http://localhost:9000"
-    region: str = "fr"
+    region: str = "eu-west-3"
     secure: bool = False
 
 

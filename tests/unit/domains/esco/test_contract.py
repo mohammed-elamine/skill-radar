@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from skill_radar.domains.esco.contract import load_esco_contract
-from skill_radar.domains.esco.models import EscoContract
+from skill_radar.domains.esco.contract.models import EscoContract
 
 
 class TestEscoContract:

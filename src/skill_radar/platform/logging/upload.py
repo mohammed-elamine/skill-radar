@@ -68,7 +68,7 @@ def upload_logfile_to_s3(
         client = boto3.client(
             "s3",
             endpoint_url=resolved_endpoint,
-            region_name=os.environ.get("AWS_DEFAULT_REGION", "fr"),
+            region_name=os.environ.get("AWS_DEFAULT_REGION", "eu-west-3"),
             use_ssl=resolved_endpoint.startswith("https"),
         )
         client.upload_file(str(logfile), resolved_bucket, key)

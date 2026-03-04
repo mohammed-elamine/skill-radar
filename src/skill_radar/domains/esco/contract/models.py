@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ColumnSpec(BaseModel):
@@ -18,11 +18,19 @@ class ContractEntity(BaseModel):
     """An entity (CSV file) expected inside the artifact ZIP.
 
     Each entity maps to one CSV with required columns declared in the contract.
+    Optional fields ``renames``, ``newline_fields``, and
+    ``derived_newline_helpers`` drive the Bronze schema-mapping logic
+    (see :mod:`skill_radar.domains.esco.bronze.schema_mapping`).
     """
 
     name: str
     filename_pattern: str
     required_columns: list[ColumnSpec]
+
+    # -- Bronze mapping configuration (optional) --
+    renames: dict[str, str] = Field(default_factory=dict)
+    newline_fields: list[str] = Field(default_factory=list)
+    derived_newline_helpers: bool = False
 
     @field_validator("required_columns", mode="before")
     @classmethod

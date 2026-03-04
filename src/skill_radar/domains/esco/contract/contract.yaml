@@ -21,6 +21,17 @@ entities:
       - description
       - skillType: ["skill/competence", "knowledge"]
       - reuseLevel: ["sector-specific", "occupation-specific", "cross-sector", "transversal"]
+    renames:
+      preferredLabel: preferred_label
+      altLabels: alt_labels_raw
+      hiddenLabels: hidden_labels_raw
+      description: description
+      skillType: skill_type
+      reuseLevel: reuse_level
+    newline_fields:
+      - altLabels
+      - hiddenLabels
+    derived_newline_helpers: true
 
   - name: occupations
     filename_pattern: "occupations_{lang}.csv"
@@ -29,14 +40,30 @@ entities:
       - altLabels
       - hiddenLabels
       - description
+    renames:
+      preferredLabel: preferred_label
+      altLabels: alt_labels_raw
+      hiddenLabels: hidden_labels_raw
+      description: description
+    newline_fields:
+      - altLabels
+      - hiddenLabels
+    derived_newline_helpers: true
 
   - name: relations
     filename_pattern: "occupationSkillRelations_{lang}.csv"
     required_columns:
       - occupationLabel
-      - relationType
+      - relationType: ["essential", "optional"]
       - skillType
       - skillLabel
+    renames:
+      occupationLabel: occupation_label
+      relationType: relation_type
+      skillType: skill_type
+      skillLabel: skill_label
+    newline_fields: []
+    derived_newline_helpers: false
 
 source:
   provider: ESCO

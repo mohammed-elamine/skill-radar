@@ -1,4 +1,4 @@
-"""Adzuna API settings (legacy module, preserved for backward compatibility)."""
+"""Adzuna API settings."""
 
 from __future__ import annotations
 

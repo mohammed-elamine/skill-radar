@@ -28,15 +28,14 @@ from skill_radar.platform.storage.exceptions import ObjectAlreadyExistsError
 from skill_radar.platform.storage.s3_client import S3Client
 from skill_radar.utils.hashing import sha256_file
 
-from .contract import load_esco_contract
-from .validator import ValidationResult, validate_artifact
+from ..contract import load_esco_contract
+from .validation import ValidationResult, validate_artifact
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from skill_radar.config.models import PlatformSettings
-
-    from .models import EscoContract
+    from skill_radar.domains.esco.contract.models import EscoContract
 
 logger = logging.getLogger(__name__)
 
@@ -120,16 +119,20 @@ def run_intake(
     size_bytes = zip_path.stat().st_size
     logger.info("SHA-256: %s (%d bytes)", checksum, size_bytes)
 
-    # --- 3. Build paths ----------------------------------------------------
+    # --- 3. Build paths (single source of truth via LakeLayout) ------------
     layout = LakeLayout(cfg)
-    prefix = layout.landing_artifact(
+    artifact_key = layout.landing_zip_key(
         domain=Domain.TAXONOMY.value,
         source=Source.ESCO.value,
         version=version,
         lang=lang,
     )
-    artifact_key = f"{prefix}/esco.zip"
-    manifest_key = f"{prefix}/manifest.json"
+    manifest_key = layout.landing_manifest_key(
+        domain=Domain.TAXONOMY.value,
+        source=Source.ESCO.value,
+        version=version,
+        lang=lang,
+    )
 
     # --- 4. Dry-run --------------------------------------------------------
     if dry_run:
