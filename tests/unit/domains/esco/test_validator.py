@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from skill_radar.domains.esco.contract import load_esco_contract
-from skill_radar.domains.esco.validator import (
+from skill_radar.domains.esco.landing.validation import (
     validate_artifact,
     validate_language,
     validate_version,

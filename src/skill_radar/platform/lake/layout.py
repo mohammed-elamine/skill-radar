@@ -57,6 +57,87 @@ class LakeLayout:
             f"/version={version}/lang={lang}"
         )
 
+    def landing_zip_key(
+        self,
+        domain: str,
+        source: str,
+        version: str,
+        lang: str,
+    ) -> str:
+        """Full S3 key for the landing ZIP artifact.
+
+        Example::
+
+            data/landing/taxonomy/esco/artifact/version=v1.2.1/lang=fr/esco.zip
+        """
+        return f"{self.landing_artifact(domain, source, version, lang)}/{source}.zip"
+
+    def landing_manifest_key(
+        self,
+        domain: str,
+        source: str,
+        version: str,
+        lang: str,
+    ) -> str:
+        """Full S3 key for the landing manifest.
+
+        Example::
+
+            data/landing/taxonomy/esco/artifact/version=v1.2.1/lang=fr/manifest.json
+        """
+        return f"{self.landing_artifact(domain, source, version, lang)}/manifest.json"
+
+    def bronze_staging_prefix(
+        self,
+        domain: str,
+        source: str,
+        version: str,
+        lang: str,
+        run_id: str,
+    ) -> str:
+        """S3 prefix for staging extracted CSVs before Spark reads them.
+
+        Example::
+
+            data/bronze/taxonomy/esco/staging/version=v1.2.0/lang=fr/run_id=abc123
+        """
+        return (
+            f"{self._root}/{self._layer_name(LakeLayer.BRONZE)}"
+            f"/{domain}/{source}/staging"
+            f"/version={version}/lang={lang}/run_id={run_id}"
+        )
+
+    def iceberg_table_fqn(
+        self,
+        layer: str,
+        dataset: str,
+        entity: str,
+        *,
+        catalog: str = "sr",
+    ) -> str:
+        """Fully-qualified Iceberg table name.
+
+        Example::
+
+            sr.sr_bronze.esco_skills_raw
+        """
+        namespace = f"sr_{layer}"
+        return f"{catalog}.{namespace}.{dataset}_{entity}_raw"
+
+    def iceberg_namespace(
+        self,
+        layer: str,
+        *,
+        catalog: str = "sr",
+    ) -> str:
+        """Fully-qualified Iceberg namespace.
+
+        Example::
+
+            sr.sr_bronze
+        """
+        return f"{catalog}.sr_{layer}"
+
     def layer_prefix(
         self,
         layer: LakeLayer,

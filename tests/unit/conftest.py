@@ -14,7 +14,7 @@ from skill_radar.config.models import PlatformSettings
 from skill_radar.domains.esco.contract import load_esco_contract
 
 if TYPE_CHECKING:
-    from skill_radar.domains.esco.models import EscoContract
+    from skill_radar.domains.esco.contract.models import EscoContract
 
 # ---------------------------------------------------------------------------
 # Platform config

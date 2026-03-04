@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from .models import EscoContract
+    from skill_radar.domains.esco.contract.models import EscoContract
 
 logger = logging.getLogger(__name__)
 
