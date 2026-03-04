@@ -75,6 +75,10 @@ else \
 fi' -- '$(3)'
 endef
 
+# Capture Git SHA for versioning (e.g. in Spark jobs, logs)
+GIT_SHA ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
+export GIT_SHA
+
 .PHONY: help
 help: ## Show available commands
 	@echo ""
@@ -114,6 +118,8 @@ type: ## Run mypy type checking
 
 utest: ## Run unit tests
 	$(call RUN_STEP,pytest (unit),,uv run pytest -q -m "not integration" --ignore=tests/integration)
+
+test: utest ## Alias for utest
 
 check: ## Run all local code checks
 	$(SILENT)$(MAKE) lint VERBOSE=$(VERBOSE)

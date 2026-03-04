@@ -97,6 +97,7 @@ services:
       # Credentials used by Hadoop S3A connector to speak to MinIO (Spark reads these env vars)
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-eu-west-3}
 
       # Make your Python package importable (src/ layout)
       PYTHONPATH: /opt/skillradar/src

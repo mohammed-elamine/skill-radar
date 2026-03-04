@@ -1,6 +1,6 @@
 import pytest
 
-from skill_radar.config import Settings
+from skill_radar.config.adzuna import Settings
 
 
 def test_settings_from_env_success(monkeypatch):

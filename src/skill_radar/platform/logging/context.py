@@ -55,17 +55,35 @@ _current_context: ContextVar[RunContext | None] = ContextVar(
 )
 
 
-def init_run_context(**kwargs) -> RunContext:
-    ctx = RunContext(**kwargs)
+def create_initial_context(
+    job_name: str,
+    *,
+    env: str | None = None,
+    git_sha: str | None = None,
+) -> RunContext:
+    """Build and activate the initial context for a run."""
+    ctx = RunContext(
+        job_name=job_name,
+        env=env or os.environ.get("SKILLRADAR_ENV", "local"),
+        git_sha=git_sha or os.environ.get("GIT_SHA", ""),
+    )
     _current_context.set(ctx)
     return ctx
 
 
 def get_context() -> RunContext:
-    """Return the active run context."""
+    """Return the active run context.
+
+    Raises
+    ------
+    RuntimeError
+        If no context has been created via :func:`create_initial_context`.
+    """
     ctx = _current_context.get()
     if ctx is None:
-        raise RuntimeError("RunContext not initialized")
+        raise RuntimeError(
+            "RunContext not initialized. Call init_logging(job_name=...) in your entrypoint."
+        )
     return ctx
 
 
@@ -92,19 +110,3 @@ def set_context(**fields: Any) -> RunContext:
 def reset_context() -> None:
     """Reset context to default (mainly for test isolation)."""
     _current_context.set(None)
-
-
-def _create_initial_context(
-    job_name: str,
-    *,
-    env: str | None = None,
-    git_sha: str | None = None,
-) -> RunContext:
-    """Build and activate the initial context for a run."""
-    ctx = RunContext(
-        job_name=job_name,
-        env=env or os.environ.get("SKILLRADAR_ENV", "local"),
-        git_sha=git_sha or os.environ.get("GIT_SHA", ""),
-    )
-    _current_context.set(ctx)
-    return ctx

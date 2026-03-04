@@ -15,7 +15,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .context import RunContext, _create_initial_context, get_context, reset_context
+from .context import RunContext, create_initial_context, get_context, reset_context
 from .filters import ContextFilter
 from .formatters import JsonFormatter, TextFormatter
 from .upload import upload_logfile_to_s3
@@ -80,10 +80,12 @@ def init_logging(
         return get_context()
 
     # 1. Create run context -----------------------------------------------
-    ctx = _create_initial_context(job_name, env=env, git_sha=git_sha)
+    ctx = create_initial_context(job_name, env=env, git_sha=git_sha)
 
     # 2. Resolve parameters from env / defaults ---------------------------
     resolved_level = (level or os.environ.get("LOG_LEVEL", "INFO")).upper()
+    if resolved_level not in logging.getLevelNamesMapping():
+        raise ValueError(f"Invalid log level: {resolved_level}")
     resolved_log_dir = Path(log_dir or os.environ.get("LOG_DIR", "logs"))
     resolved_console_fmt = console_format or os.environ.get("LOG_FORMAT", "text")
     resolved_file_fmt = file_format or "json"
@@ -94,7 +96,7 @@ def init_logging(
     # 3. Remove any pre-existing handlers (avoid duplicates) --------------
     root.handlers.clear()
 
-    # 4. Create context-injecting filter -----------------------------------
+    # 4. Create context-injecting filter ----------------------------------
     #    Attached to each *handler* (not to the root logger) so that
     #    records propagated from child loggers are also enriched.
     ctx_filter = ContextFilter()
@@ -102,7 +104,11 @@ def init_logging(
 
     # 5. Console handler --------------------------------------------------
     console = logging.StreamHandler()
-    console_level = logging.DEBUG if verbose else logging.getLevelName(resolved_level)
+    console_level = (
+        logging.DEBUG if verbose else logging.getLevelNamesMapping().get(resolved_level, None)
+    )
+    if console_level is None:
+        raise ValueError(f"Invalid log level: {resolved_level}")
     console.setLevel(console_level)
     if resolved_console_fmt == "json":
         console.setFormatter(JsonFormatter())

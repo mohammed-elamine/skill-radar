@@ -5,7 +5,7 @@ storage:
   s3:
     bucket: skillradar-lake
     endpoint: http://localhost:9000
-    region: fr
+    region: eu-west-3
     secure: false
 
 lake:
