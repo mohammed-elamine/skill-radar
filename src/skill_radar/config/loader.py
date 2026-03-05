@@ -15,7 +15,8 @@ _DEFAULTS_PATH = Path(__file__).parent / "defaults.yaml"
 _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
     "SKILLRADAR_ENV": ("platform", "environment"),
     "SKILLRADAR_S3_BUCKET": ("storage", "s3", "bucket"),
-    "SKILLRADAR_S3_ENDPOINT": ("storage", "s3", "endpoint"),
+    "SKILLRADAR_S3_ENDPOINT_HOST": ("storage", "s3", "endpoint_host"),
+    "SKILLRADAR_S3_ENDPOINT_DOCKER": ("storage", "s3", "endpoint_docker"),
     "LOG_LEVEL": ("logging", "level"),
     "LOG_DIR": ("logging", "log_dir"),
     "LOG_FORMAT": ("logging", "console_format"),

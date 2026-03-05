@@ -114,6 +114,26 @@ Checks:
 - Iceberg connectivity
 - Spark job execution
 
+## Infrastructure Validation
+
+Validate infrastructure health from the host:
+```bash
+make validate-infra      # Host scope: MinIO connectivity, bucket existence
+make validate-infra-all  # Full scope: includes Spark/Iceberg checks (runs in container)
+```
+
+**Note:** Host validation targets (`validate-infra`, `apply-infra-host`, `run-infra-host`) automatically source `.env` to load credentials. Required environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_ACCESS_KEY_ID` | MinIO/S3 access key (matches `MINIO_ROOT_USER`) |
+| `AWS_SECRET_ACCESS_KEY` | MinIO/S3 secret key (matches `MINIO_ROOT_PASSWORD`) |
+
+If `.env` is missing or credentials are not set, you'll see:
+```
+Missing AWS credentials: set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or source .env
+```
+
 ---
 
 # Development Workflow
@@ -134,6 +154,70 @@ CI runs:
 - Type-check
 - Unit tests
 - Integration tests
+
+---
+
+# ESCO Dataset Ingestion
+
+The ESCO (European Skills, Competences, Qualifications and Occupations) dataset requires manual download due to authentication requirements on the official portal.
+
+## Workflow
+
+### Step 1: Download ESCO ZIP
+
+Download the ESCO dataset manually from the [official portal](https://esco.ec.europa.eu/).
+
+### Step 2: Place in Dropzone
+
+Move the downloaded ZIP file to the host dropzone directory:
+
+```bash
+# Create dropzone if it doesn't exist
+mkdir -p ./data/incoming/esco
+
+# Move your downloaded file (any of these locations work):
+mv ~/Downloads/ESCO_v1.2.1.zip ./data/incoming/esco/esco.zip
+# Or with language suffix:
+mv ~/Downloads/ESCO_v1.2.1.zip ./data/incoming/esco/esco_fr.zip
+```
+
+The container will see this file at `/opt/skillradar/incoming/esco/esco.zip`.
+
+### Step 3: Upload to Landing Zone
+
+```bash
+make upload-esco VERSION=v1.2.1 LANG=fr
+```
+
+This runs inside the Spark container and uploads the artifact to the MinIO landing bucket.
+
+### Step 4: Run Bronze Extraction
+
+```bash
+make bronze-esco VERSION=v1.2.1 LANG=fr
+```
+
+### Step 5: Validate
+
+```bash
+make validate-esco-bronze VERSION=v1.2.1 LANG=fr
+```
+
+## File Resolution
+
+The CLI searches for ESCO files in this order:
+1. `{dropzone}/esco/esco.zip`
+2. `{dropzone}/esco/esco_{lang}.zip`
+3. `{dropzone}/esco/{version}/esco.zip`
+4. `{dropzone}/esco/{version}/{lang}/esco.zip`
+
+## Alternative: Direct File Upload (Host)
+
+If you prefer to run the upload on the host (requires AWS credentials configured):
+
+```bash
+make upload-esco-local FILE=path/to/esco.zip VERSION=v1.2.1 LANG=fr
+```
 
 ---
 

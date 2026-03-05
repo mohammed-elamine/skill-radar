@@ -6,18 +6,48 @@ from pydantic import BaseModel, Field
 
 
 class S3Config(BaseModel):
-    """S3-compatible storage configuration."""
+    """S3-compatible storage configuration.
+
+    Attributes
+    ----------
+    bucket:
+        Primary lake bucket name.
+    endpoint_host:
+        S3 endpoint when running on host (outside Docker).
+    endpoint_docker:
+        S3 endpoint when running inside Docker network.
+    region:
+        AWS region for S3 operations.
+    secure:
+        Whether to use HTTPS.
+    additional_buckets:
+        Extra buckets beyond lake + logs.
+    """
 
     bucket: str = "skillradar-lake"
-    endpoint: str = "http://localhost:9000"
+    endpoint_host: str = "http://localhost:9000"
+    endpoint_docker: str = "http://minio:9000"
     region: str = "eu-west-3"
     secure: bool = False
+    additional_buckets: list[str] = Field(default_factory=list)
+
+
+class IcebergConfig(BaseModel):
+    """Iceberg catalog configuration."""
+
+    catalog_name: str = "sr"
+    namespace_prefix: str = "sr"
+    warehouse: str = "s3a://skillradar-lake/warehouse"
+    required_namespaces: list[str] = Field(
+        default_factory=lambda: ["sr_bronze", "sr_silver", "sr_gold"]
+    )
 
 
 class StorageConfig(BaseModel):
     """Storage backend configuration."""
 
     s3: S3Config = Field(default_factory=S3Config)
+    iceberg: IcebergConfig = Field(default_factory=IcebergConfig)
 
 
 class LakeLayersConfig(BaseModel):

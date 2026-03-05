@@ -46,7 +46,7 @@ def write_bronze_table(
             .using("iceberg")
             .tableProperty("format-version", "2")
             .tableProperty("write.format.default", "parquet")
-            .partitionedBy("version", "lang")
+            .partitionedBy("version", "lang")  # type: ignore[arg-type]
             .create()
         )
     else:

@@ -1,8 +1,7 @@
 """Tests for ContextFilter.
 
-The filter always requires an initialised ``RunContext``.  A ``RuntimeError``
-is raised if the context is missing — every job entrypoint must call
-:func:`init_logging` before emitting any log record.
+The filter injects RunContext fields when available and gracefully degrades
+when context is missing (e.g. during shutdown or 3rd-party logging).
 """
 
 from __future__ import annotations
@@ -40,11 +39,34 @@ def _make_record(msg: str = "hello") -> logging.LogRecord:
 class TestContextFilter:
     """ContextFilter enriches log records with RunContext fields."""
 
-    def test_raises_without_context(self) -> None:
-        """Missing RunContext must raise RuntimeError."""
+    def test_graceful_without_context(self) -> None:
+        """Missing RunContext does not raise - filter returns True without injecting."""
         filt = ContextFilter()
-        with pytest.raises(RuntimeError, match="RunContext not initialized"):
-            filt.filter(_make_record())
+        record = _make_record()
+        # Should not raise RuntimeError
+        result = filt.filter(record)
+        assert result is True
+        # Fields should not be injected
+        assert not hasattr(record, "run_id")
+        assert not hasattr(record, "job_name")
+
+    def test_graceful_after_finalize(self) -> None:
+        """After finalize_logging (reset), filter still works without raising."""
+        create_initial_context(job_name="test_job")
+        filt = ContextFilter()
+        record1 = _make_record("before")
+        assert filt.filter(record1) is True
+        assert record1.job_name == "test_job"  # type: ignore[attr-defined]
+
+        # Simulate finalize_logging() which calls reset_context()
+        reset_context()
+
+        record2 = _make_record("after")
+        # Should not raise
+        result = filt.filter(record2)
+        assert result is True
+        # Fields should not be injected on record2
+        assert not hasattr(record2, "run_id")
 
     def test_enriches_record_when_context_exists(self) -> None:
         """Fields from RunContext are injected into the log record."""
