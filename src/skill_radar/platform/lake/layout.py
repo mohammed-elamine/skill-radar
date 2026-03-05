@@ -24,8 +24,19 @@ class LakeLayout:
     """
 
     def __init__(self, config: PlatformSettings) -> None:
+        self._config = config
         self._root = config.lake.root_prefix
         self._layers = config.lake.layers
+
+    @property
+    def iceberg_catalog(self) -> str:
+        """Return the configured Iceberg catalog name."""
+        return self._config.storage.iceberg.catalog_name
+
+    @property
+    def iceberg_namespace_prefix(self) -> str:
+        """Return the configured Iceberg namespace prefix."""
+        return self._config.storage.iceberg.namespace_prefix
 
     # -- helpers ---------------------------------------------------------
 
@@ -113,7 +124,7 @@ class LakeLayout:
         dataset: str,
         entity: str,
         *,
-        catalog: str = "sr",
+        catalog: str | None = None,
     ) -> str:
         """Fully-qualified Iceberg table name.
 
@@ -121,14 +132,16 @@ class LakeLayout:
 
             sr.sr_bronze.esco_skills_raw
         """
-        namespace = f"sr_{layer}"
-        return f"{catalog}.{namespace}.{dataset}_{entity}_raw"
+        cat = catalog or self.iceberg_catalog
+        ns_prefix = self.iceberg_namespace_prefix
+        namespace = f"{ns_prefix}_{layer}"
+        return f"{cat}.{namespace}.{dataset}_{entity}_raw"
 
     def iceberg_namespace(
         self,
         layer: str,
         *,
-        catalog: str = "sr",
+        catalog: str | None = None,
     ) -> str:
         """Fully-qualified Iceberg namespace.
 
@@ -136,7 +149,23 @@ class LakeLayout:
 
             sr.sr_bronze
         """
-        return f"{catalog}.sr_{layer}"
+        cat = catalog or self.iceberg_catalog
+        return f"{cat}.{self.iceberg_namespace_name(layer)}"
+
+    def iceberg_namespace_name(
+        self,
+        layer: str,
+    ) -> str:
+        """Return just the namespace name (without catalog prefix).
+
+        Example::
+
+            sr_bronze
+        """
+        ns_prefix = self.iceberg_namespace_prefix
+        if not ns_prefix:
+            return layer
+        return f"{ns_prefix}_{layer}"
 
     def layer_prefix(
         self,

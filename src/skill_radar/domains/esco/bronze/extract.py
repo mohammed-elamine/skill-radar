@@ -37,6 +37,7 @@ from skill_radar.domains.esco.contract import load_esco_contract
 from skill_radar.platform.lake.enums import Domain, Source
 from skill_radar.platform.lake.layout import LakeLayout
 from skill_radar.platform.logging.context import get_context
+from skill_radar.platform.runtime import get_runtime_context, resolve_s3_endpoint
 
 from .errors import BronzeValidationError
 from .iceberg import ensure_bronze_namespace, write_bronze_table
@@ -328,7 +329,8 @@ def run_bronze_extraction(
     zip_key = layout.landing_zip_key(domain, source, version, lang)
     manifest_key = layout.landing_manifest_key(domain, source, version, lang)
     s3_bucket = cfg.storage.s3.bucket
-    s3_endpoint = cfg.storage.s3.endpoint
+    runtime_ctx = get_runtime_context()
+    s3_endpoint = resolve_s3_endpoint(cfg.storage.s3, runtime_ctx)
 
     logger.info("Landing artifact: s3://%s/%s", s3_bucket, zip_key)
 
@@ -530,7 +532,8 @@ def upload_run_summary(
 
     try:
         body = json.dumps(run_result.summary_dict(), indent=2, default=str)
-        s3_endpoint = cfg.storage.s3.endpoint
+        ctx = get_runtime_context()
+        s3_endpoint = resolve_s3_endpoint(cfg.storage.s3, ctx)
         client = boto3.client("s3", endpoint_url=s3_endpoint)
         client.put_object(
             Bucket=logs_bucket,

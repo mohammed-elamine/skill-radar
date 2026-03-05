@@ -24,6 +24,7 @@ from skill_radar.config.loader import load_platform_config
 from skill_radar.platform.lake.enums import Domain, Source
 from skill_radar.platform.lake.layout import LakeLayout
 from skill_radar.platform.manifest.builder import ManifestBuilder
+from skill_radar.platform.runtime import get_runtime_context, resolve_s3_endpoint
 from skill_radar.platform.storage.exceptions import ObjectAlreadyExistsError
 from skill_radar.platform.storage.s3_client import S3Client
 from skill_radar.utils.hashing import sha256_file
@@ -151,7 +152,9 @@ def run_intake(
         )
 
     # --- 5. Upload ---------------------------------------------------------
-    s3 = S3Client(cfg)
+    ctx = get_runtime_context()
+    endpoint = resolve_s3_endpoint(cfg.storage.s3, ctx)
+    s3 = S3Client(cfg, endpoint_url=endpoint)
 
     # Idempotency check
     if s3.object_exists(artifact_key) and not force:

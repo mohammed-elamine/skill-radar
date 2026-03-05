@@ -64,6 +64,7 @@ class ManifestBuilder:
                     "algorithm": "sha256",
                     "value": checksum,
                 },
+                "sha256": checksum,
                 "size_bytes": size_bytes,
                 "storage": {
                     "bucket": self._bucket,

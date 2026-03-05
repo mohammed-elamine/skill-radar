@@ -87,7 +87,7 @@ class IcebergClient:
         for k, v in props.items():
             writer = writer.tableProperty(k, v)
         if partition_by:
-            writer = writer.partitionedBy(*partition_by)
+            writer = writer.partitionedBy(*partition_by)  # type: ignore[arg-type]
         writer.create()
         logger.info("Created Iceberg table: %s (partitioned by %s)", fqn, partition_by)
 

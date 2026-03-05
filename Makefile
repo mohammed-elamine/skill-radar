@@ -75,6 +75,48 @@ else \
 fi' -- '$(3)'
 endef
 
+# Run a host step with .env sourced (local-dev-only).
+# Sources .env if present before running command.
+# Required vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (for MinIO/S3 access)
+# $(call RUN_STEP_HOST,<label>,<logfile or empty>,<command>)
+define RUN_STEP_HOST
+$(SILENT)bash -lc '\
+set -euo pipefail; \
+STEP="$(1)"; LOGFILE="$(2)"; \
+$(call UI_INFO,$(1)); \
+if [[ -n "$$LOGFILE" ]]; then mkdir -p "$(LOG_DIR)"; fi; \
+CMD="$$1"; \
+if [[ "$(VERBOSE)" == "1" ]]; then \
+  printf "$(C_DIM)• cmd: %s$(C_RESET)\n" "$$CMD"; \
+fi; \
+ENV_CMD=""; \
+if [[ -f .env ]]; then \
+  ENV_CMD="set -a; source .env; set +a; "; \
+  if [[ "$(VERBOSE)" == "1" ]]; then \
+    printf "$(C_DIM)• sourced .env$(C_RESET)\n"; \
+  fi; \
+fi; \
+if bash -lc "$${ENV_CMD}$$CMD"; then \
+  $(call UI_OK,$(1)); \
+else \
+  rc=$$?; \
+  $(call UI_FAIL,$(1)); \
+  echo ""; \
+  printf "$(C_RED)Failure summary$(C_RESET)\n"; \
+  printf "  • Step:  $(C_BOLD)%s$(C_RESET)\n" "$$STEP"; \
+  if [[ -n "$$LOGFILE" ]]; then \
+    printf "  • Logs:  $(C_BOLD)%s$(C_RESET)\n" "$$LOGFILE"; \
+    printf "  • Tail:  (last 80 lines)\n"; \
+    tail -n 80 "$$LOGFILE" || true; \
+  else \
+    printf "  • Logs:  (none captured)\n"; \
+  fi; \
+  echo ""; \
+  printf "$(C_DIM)Tip: re-run with VERBOSE=1 for full command output.$(C_RESET)\n"; \
+  exit $$rc; \
+fi' -- '$(3)'
+endef
+
 # Capture Git SHA for versioning (e.g. in Spark jobs, logs)
 GIT_SHA ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
 export GIT_SHA
@@ -162,6 +204,7 @@ doctor-infra-only: ## Only docker infra + smoke
 .PHONY: up down reset ps logs smoke itest test-all
 
 up: ## Start local infrastructure
+	$(call RUN_STEP,docker compose build spark,,docker compose build spark)
 	$(call RUN_STEP,docker compose up -d,,docker compose up -d)
 
 down: ## Stop infrastructure
@@ -217,3 +260,104 @@ dev: ## Run quality checks and ensure infra is healthy
 	$(SILENT)$(MAKE) quality VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) infra VERBOSE=$(VERBOSE)
 	$(SILENT)bash -lc '$(call UI_OK,Dev workflow passed.)'
+
+# ==========================================
+# Validation Commands
+# ==========================================
+
+# Dynamic overrides for ESCO pipeline
+VERSION ?= v1.2.1
+ESCO_LANG ?= fr
+FILE ?= data/esco.zip
+ENTITIES ?=
+EXTRA ?=
+
+# Helper: build optional --entities flag
+_ENTITIES_FLAG = $(if $(ENTITIES),--entities $(ENTITIES),)
+
+DOCKER_EXEC = docker compose exec -T
+SPARK_EXEC  = $(DOCKER_EXEC) spark bash -lc
+
+.PHONY: validate-infra validate-infra-runtime validate-infra-all validate-esco-landing validate-esco-bronze validate-esco-bronze-e2e validate-bronze
+
+validate-infra: ## Validate infrastructure (host scope: boto3 checks only) [sources .env]
+	$(call RUN_STEP_HOST,Validate infrastructure (host),,\
+	SKILLRADAR_RUNTIME_CONTEXT=host uv run skill-radar validate infra --scope host)
+
+validate-infra-runtime: ## Validate infrastructure runtime (Spark/Iceberg checks) [Spark]
+	$(call RUN_STEP,Validate infrastructure (runtime),,\
+	$(SPARK_EXEC) "SKILLRADAR_RUNTIME_CONTEXT=docker uv run skill-radar validate infra --scope runtime")
+
+validate-infra-all: ## Validate all infrastructure (host + runtime checks) [Spark]
+	$(call RUN_STEP,Validate infrastructure (all),,\
+	$(SPARK_EXEC) "SKILLRADAR_RUNTIME_CONTEXT=docker uv run skill-radar validate infra --scope all")
+
+validate-esco-landing: ## Validate ESCO landing zone (VERSION=... ESCO_LANG=...)
+	$(call RUN_STEP_HOST,Validate ESCO landing,,uv run skill-radar validate esco-landing --version $(VERSION) --lang $(ESCO_LANG))
+
+validate-esco-bronze: ## Validate ESCO bronze tables (VERSION=... ESCO_LANG=... ENTITIES=...) [Spark]
+	$(call RUN_STEP,Validate ESCO bronze (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar validate esco-bronze --version $(VERSION) --lang $(ESCO_LANG) $(_ENTITIES_FLAG) $(EXTRA)")
+
+validate-esco-bronze-e2e: ## E2E bronze validation: extract + validate (VERSION=... ESCO_LANG=... ENTITIES=...) [Spark]
+	$(call RUN_STEP,Validate ESCO bronze E2E (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar validate esco-bronze-e2e --version $(VERSION) --lang $(ESCO_LANG) $(_ENTITIES_FLAG) $(EXTRA)")
+
+validate-bronze: ## Validate bronze tables (dataset=esco, VERSION=... ESCO_LANG=...)
+	$(SILENT)$(MAKE) validate-esco-bronze VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Infrastructure Provisioning
+# ─────────────────────────────────────────────────────────────────────────────
+
+.PHONY: apply-infra infra-status run-infra
+
+apply-infra: ## Provision infrastructure (buckets + namespaces)
+	$(call RUN_STEP,Apply infrastructure,, \
+	$(SPARK_EXEC) "uv run skill-radar infra apply")
+
+apply-infra-host: ## Provision infrastructure from host (buckets only, skips namespaces) [sources .env]
+	$(call RUN_STEP_HOST,Apply infrastructure (host),,uv run skill-radar infra apply)
+
+infra-status: ## Check infrastructure status (alias for validate-infra, host scope)
+	$(SILENT)$(MAKE) validate-infra VERBOSE=$(VERBOSE)
+
+run-infra: ## Apply + validate infrastructure
+	$(call RUN_STEP,Run infrastructure (apply + validate),, \
+	$(SPARK_EXEC) "uv run skill-radar run infra")
+
+run-infra-host: ## Apply + validate infrastructure from host (buckets only) [sources .env]
+	$(call RUN_STEP_HOST,Run infrastructure (host),,uv run skill-radar run infra)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ESCO Bronze Pipeline (3-step)
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage (dropzone workflow - recommended):
+#   1. Download ESCO ZIP manually to ./data/incoming/esco/esco.zip
+#   2. make upload-esco VERSION=v1.2.1 ESCO_LANG=fr
+#   3. make bronze-esco VERSION=v1.2.1 ESCO_LANG=fr
+#   4. make validate-esco-bronze VERSION=v1.2.1 ESCO_LANG=fr
+#
+# Usage (direct file - host only):
+#   make upload-esco-local FILE=data/esco.zip VERSION=v1.2.1 ESCO_LANG=fr
+# ─────────────────────────────────────────────────────────────────────────────
+
+.PHONY: upload-esco upload-esco-local bronze-esco run-esco-bronze
+
+upload-esco: ## Upload ESCO artifact from dropzone (docker): VERSION=... ESCO_LANG=...
+	$(call RUN_STEP,Upload ESCO artifact (via dropzone in container),,\
+	docker compose exec -T spark bash -lc "uv run skill-radar esco upload --version $(VERSION) --lang $(ESCO_LANG) $(EXTRA)")
+
+upload-esco-local: ## Upload ESCO artifact (host-side, direct file): VERSION=... ESCO_LANG=... FILE=...
+	$(call RUN_STEP,Upload ESCO artifact (host),,\
+	uv run skill-radar esco upload --version $(VERSION) --lang $(ESCO_LANG) --file $(FILE) $(EXTRA))
+
+bronze-esco: ## Run ESCO bronze extraction (Spark): VERSION=... ESCO_LANG=... ENTITIES=...
+	$(call RUN_STEP,Run ESCO bronze extraction (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar esco bronze --version $(VERSION) --lang $(ESCO_LANG) $(_ENTITIES_FLAG) $(EXTRA)")
+
+run-esco-bronze: ## Full ESCO bronze pipeline: upload → extract → validate (VERSION=... ESCO_LANG=...)
+	$(SILENT)$(MAKE) upload-esco VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) bronze-esco VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) validate-esco-bronze VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
+	$(SILENT)bash -lc '$(call UI_OK,ESCO bronze pipeline complete.)'
