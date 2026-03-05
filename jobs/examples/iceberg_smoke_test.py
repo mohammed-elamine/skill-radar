@@ -19,16 +19,30 @@ def main() -> None:
         log.info("Ensured namespace sr.%s", ns)
 
     table = "sr.silver.iceberg_smoke"
+
+    # Create table if not exists (avoids version-hint.text warning from createOrReplace)
+    spark.sql(f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            id BIGINT,
+            ingested_at TIMESTAMP,
+            tag STRING
+        ) USING iceberg
+    """)
+    log.info("Ensured table exists: %s", table)
+
+    # Build test data
     df = (
         spark.range(1, 6)
         .withColumn("ingested_at", F.current_timestamp())
         .withColumn("tag", F.lit("smoke"))
     )
 
-    df.writeTo(table).using("iceberg").createOrReplace()
-    log.info("Wrote Iceberg table: %s", table)
+    # Overwrite data (table already exists, so no metadata lookup warning)
+    df.writeTo(table).overwritePartitions()
+    log.info("Wrote data to Iceberg table: %s", table)
 
-    out = spark.table(table).orderBy("id")
+    # Read and validate (cache to avoid multiple actions)
+    out = spark.table(table).orderBy("id").cache()
     out.show(truncate=False)
 
     count = out.count()
@@ -38,6 +52,8 @@ def main() -> None:
     cols = set(out.columns)
     require({"id", "ingested_at", "tag"}.issubset(cols), f"Unexpected columns: {out.columns}")
     log.info("Schema check OK")
+
+    out.unpersist()
 
     spark.stop()
     log.info("✅ Iceberg smoke test passed.")

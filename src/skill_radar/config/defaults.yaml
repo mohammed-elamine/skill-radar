@@ -4,9 +4,19 @@ platform:
 storage:
   s3:
     bucket: skillradar-lake
-    endpoint: http://localhost:9000
+    endpoint_host: http://localhost:9000
+    endpoint_docker: http://minio:9000
     region: eu-west-3
     secure: false
+    additional_buckets: []  # extra buckets beyond lake + logs
+  iceberg:
+    catalog_name: sr
+    namespace_prefix: sr
+    warehouse: s3a://skillradar-lake/warehouse
+    required_namespaces:
+      - sr_bronze
+      - sr_silver
+      - sr_gold
 
 lake:
   root_prefix: data

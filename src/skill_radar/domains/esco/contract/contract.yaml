@@ -15,13 +15,15 @@ entities:
   - name: skills
     filename_pattern: "skills_{lang}.csv"
     required_columns:
+      - conceptUri
       - preferredLabel
       - altLabels
       - hiddenLabels
       - description
-      - skillType: ["skill/competence", "knowledge"]
-      - reuseLevel: ["sector-specific", "occupation-specific", "cross-sector", "transversal"]
+      - skillType
+      - reuseLevel
     renames:
+      conceptUri: concept_uri
       preferredLabel: preferred_label
       altLabels: alt_labels_raw
       hiddenLabels: hidden_labels_raw
@@ -36,6 +38,7 @@ entities:
   - name: occupations
     filename_pattern: "occupations_{lang}.csv"
     required_columns:
+      - conceptUri
       - preferredLabel
       - altLabels
       - hiddenLabels
@@ -45,6 +48,7 @@ entities:
       altLabels: alt_labels_raw
       hiddenLabels: hidden_labels_raw
       description: description
+      conceptUri: concept_uri
     newline_fields:
       - altLabels
       - hiddenLabels
@@ -53,15 +57,19 @@ entities:
   - name: relations
     filename_pattern: "occupationSkillRelations_{lang}.csv"
     required_columns:
+      - occupationUri
       - occupationLabel
-      - relationType: ["essential", "optional"]
+      - relationType
       - skillType
       - skillLabel
+      - skillUri
     renames:
       occupationLabel: occupation_label
+      occupationUri: occupation_uri
       relationType: relation_type
       skillType: skill_type
       skillLabel: skill_label
+      skillUri: skill_uri
     newline_fields: []
     derived_newline_helpers: false
 

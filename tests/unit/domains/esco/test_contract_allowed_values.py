@@ -120,17 +120,3 @@ class TestContractEntities:
     def test_expected_entities_exist(self, contract) -> None:
         names = {e.name for e in contract.entities}
         assert names == {"skills", "occupations", "relations"}
-
-    def test_skills_has_allowed_values(self, contract) -> None:
-        ent = next(e for e in contract.entities if e.name == "skills")
-        constrained = [s for s in ent.required_columns if s.allowed_values]
-        names = {s.name for s in constrained}
-        assert "skillType" in names
-        assert "reuseLevel" in names
-
-    def test_relations_has_relation_type_constraint(self, contract) -> None:
-        """relationType has allowed_values [essential, optional] in the contract."""
-        ent = next(e for e in contract.entities if e.name == "relations")
-        constrained = {s.name: s.allowed_values for s in ent.required_columns if s.allowed_values}
-        assert "relationType" in constrained
-        assert set(constrained["relationType"]) == {"essential", "optional"}

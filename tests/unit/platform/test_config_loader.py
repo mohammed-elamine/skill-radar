@@ -14,7 +14,8 @@ class TestConfigLoader:
         assert isinstance(config, PlatformSettings)
         assert config.platform.environment == "local"
         assert config.storage.s3.bucket == "skillradar-lake"
-        assert config.storage.s3.endpoint == "http://localhost:9000"
+        assert config.storage.s3.endpoint_host == "http://localhost:9000"
+        assert config.storage.s3.endpoint_docker == "http://minio:9000"
         assert config.lake.root_prefix == "data"
         assert config.lake.layers.landing == "landing"
         assert config.manifest.schema_version == "1.0.0"
@@ -25,10 +26,15 @@ class TestConfigLoader:
         config = load_platform_config()
         assert config.storage.s3.bucket == "test-bucket"
 
-    def test_env_override_endpoint(self, monkeypatch):
-        monkeypatch.setenv("SKILLRADAR_S3_ENDPOINT", "http://custom:9999")
+    def test_env_override_endpoint_host(self, monkeypatch):
+        monkeypatch.setenv("SKILLRADAR_S3_ENDPOINT_HOST", "http://custom-host:9999")
         config = load_platform_config()
-        assert config.storage.s3.endpoint == "http://custom:9999"
+        assert config.storage.s3.endpoint_host == "http://custom-host:9999"
+
+    def test_env_override_endpoint_docker(self, monkeypatch):
+        monkeypatch.setenv("SKILLRADAR_S3_ENDPOINT_DOCKER", "http://custom-docker:9999")
+        config = load_platform_config()
+        assert config.storage.s3.endpoint_docker == "http://custom-docker:9999"
 
     def test_env_override_environment(self, monkeypatch):
         monkeypatch.setenv("SKILLRADAR_ENV", "production")

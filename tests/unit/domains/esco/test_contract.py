@@ -43,13 +43,6 @@ class TestEscoContract:
         assert "preferredLabel" in col_names
         assert "skillType" in col_names
 
-    def test_skills_entity_allowed_values(self):
-        contract = load_esco_contract()
-        skills = next(e for e in contract.entities if e.name == "skills")
-        skill_type_col = next(c for c in skills.required_columns if c.name == "skillType")
-        assert skill_type_col.allowed_values is not None
-        assert "skill/competence" in skill_type_col.allowed_values
-
     def test_source_metadata(self):
         contract = load_esco_contract()
         assert contract.source.provider == "ESCO"

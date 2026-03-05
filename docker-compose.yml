@@ -63,35 +63,21 @@ services:
   # -----------------------------
   # 2) Spark submit node
   # -----------------------------
-  # This init container runs as root only to prepare the volume for the Spark container
-  # (which can run as non-root to avoid permission issues with mounted volumes).
-  spark-ivy-init:
-    image: busybox:1.36
-    depends_on:
-      mc:
-        condition: service_completed_successfully
-    user: "0:0"
-    volumes:
-      - spark_ivy:/tmp/.ivy2
-    command: >
-      sh -lc "
-      mkdir -p /tmp/.ivy2/cache /tmp/.ivy2/jars &&
-      chown -R ${SPARK_UID:-185}:${SPARK_GID:-185} /tmp/.ivy2 &&
-      chmod -R u+rwX,g+rwX /tmp/.ivy2
-      "
-
+  # Production-aligned Spark container:
+  # - Python 3.11 with uv for dependency management
+  # - Pre-baked Iceberg/Hadoop jars (no Ivy at runtime)
+  # - Clean logs via log4j2.properties
   spark:
-    image: spark:3.5.7-python3
+    build:
+      context: .
+      dockerfile: docker/spark/Dockerfile
+    image: skillradar-spark:3.5.7-uv
+    working_dir: /opt/skillradar
     depends_on:
       minio:
         condition: service_healthy
       mc:
         condition: service_completed_successfully
-      spark-ivy-init:
-        condition: service_completed_successfully
-
-    # Run as root to avoid permission issues with mounted volumes (optional, but convenient for local dev)
-    user: "0:0"
 
     environment:
       # Credentials used by Hadoop S3A connector to speak to MinIO (Spark reads these env vars)
@@ -99,28 +85,31 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-eu-west-3}
 
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk
+      PATH: /usr/lib/jvm/temurin-17-jdk/bin:/opt/skillradar/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
       # Make your Python package importable (src/ layout)
       PYTHONPATH: /opt/skillradar/src
 
-      # Add Spark and Hadoop CLI tools to PATH (optional, for debugging)
-      PATH: /opt/spark/bin:${PATH}
-
-      # Optional: speed up downloads / set ivy cache in a mounted volume
-      SPARK_SUBMIT_OPTS: "-Divy.cache.dir=/tmp/.ivy2 -Divy.home=/tmp/.ivy2"
+      # PySpark Python interpreter (use the venv with our dependencies)
+      PYSPARK_PYTHON: /opt/skillradar/.venv/bin/python
+      PYSPARK_DRIVER_PYTHON: /opt/skillradar/.venv/bin/python
 
     volumes:
-      # Jobs and configs are mounted so we can iterate without rebuilding the image.
+      - ./pyproject.toml:/opt/skillradar/pyproject.toml:ro
+      - ./uv.lock:/opt/skillradar/uv.lock:ro
       - ./jobs:/opt/skillradar/jobs
-      # Python package (library code)
       - ./src:/opt/skillradar/src
-      # Shared configs folder (optional to keep)
       - ./configs:/opt/skillradar/configs
+      - ./logs:/opt/skillradar/logs
 
-      # Make Spark automatically pick up defaults (no need for --properties-file)
+      # Manual ingest dropzone: host downloads → container sees read-only
+      # Usage: place files in ./data/incoming/<dataset>/ on host
+      - ./data/incoming:/opt/skillradar/incoming:ro
+
+      # Spark configuration (mounts override baked-in defaults for dev iteration)
       - ./configs/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
-
-      # Persist Ivy cache so we don't redownload jars each time
-      - spark_ivy:/tmp/.ivy2
+      - ./configs/log4j2.properties:/opt/spark/conf/log4j2.properties:ro
 
     entrypoint: ["/bin/bash", "-lc"]
     command: >
@@ -243,7 +232,6 @@ services:
 
 volumes:
   minio_data:
-  spark_ivy:
   airflow_db:
   airflow_logs:
   es_data:
