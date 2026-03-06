@@ -40,3 +40,12 @@ class TestConfigLoader:
         monkeypatch.setenv("SKILLRADAR_ENV", "production")
         config = load_platform_config()
         assert config.platform.environment == "production"
+
+    def test_loads_validation_defaults(self):
+        config = load_platform_config()
+        assert config.validation.esco.silver.min_relation_fk_coverage == 0.99
+
+    def test_env_override_validation_fk_coverage(self, monkeypatch):
+        monkeypatch.setenv("SKILLRADAR_VALIDATION_ESCO_SILVER_MIN_FK_COVERAGE", "0.95")
+        config = load_platform_config()
+        assert config.validation.esco.silver.min_relation_fk_coverage == 0.95

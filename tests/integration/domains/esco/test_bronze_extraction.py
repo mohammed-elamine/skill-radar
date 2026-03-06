@@ -14,6 +14,7 @@ Workflow
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -21,12 +22,14 @@ from pathlib import Path
 import pytest
 
 # Fixture ZIP lives at tests/fixtures/esco/esco_bronze_valid.zip
-FIXTURE_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "esco"
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "esco"
 BRONZE_ZIP = FIXTURE_DIR / "esco_bronze_valid.zip"
 
 SPARK_EXEC = ["docker", "compose", "exec", "-T", "spark", "bash", "-lc"]
 
-VERSION = "v1.0.0"
+# Use a dedicated test version to avoid collisions with production data
+VERSION = "v0.0.1"
 LANG = "fr"
 
 
@@ -46,6 +49,14 @@ def _upload_fixture_to_landing() -> None:
     Uses the host-side CLI (``uv run skill-radar esco upload``) which
     connects to MinIO at localhost:9000.
     """
+    src_dir = PROJECT_ROOT / "src"
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH")
+    if existing_pythonpath:
+        env["PYTHONPATH"] = f"{src_dir}:{existing_pythonpath}"
+    else:
+        env["PYTHONPATH"] = str(src_dir)
+
     result = subprocess.run(
         [
             sys.executable,
@@ -64,6 +75,7 @@ def _upload_fixture_to_landing() -> None:
         capture_output=True,
         text=True,
         timeout=30,
+        env=env,
     )
     # Accept exit code 0 (success) — the artifact lands in MinIO
     assert result.returncode == 0, (

@@ -14,6 +14,9 @@ from pathlib import Path
 
 import pytest
 
+# Project root directory (for subprocess cwd)
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
 
@@ -72,6 +75,7 @@ class TestInfraValidation:
             ["uv", "run", "skill-radar", "validate", "infra", "--quiet"],
             capture_output=True,
             timeout=30,
+            cwd=PROJECT_ROOT,
         )
 
         # Should either pass or just skip spark check
@@ -111,6 +115,7 @@ class TestEscoLandingValidation:
             ],
             capture_output=True,
             timeout=30,
+            cwd=PROJECT_ROOT,
         )
 
         # Should fail with landing failure exit code (20)
@@ -123,8 +128,37 @@ class TestEscoBronzeE2E:
     @pytest.mark.skipif(not spark_available(), reason="Spark container not available")
     @pytest.mark.skipif(not minio_available(), reason="MinIO not available")
     def test_bronze_e2e_with_valid_fixture(self, fixture_zip: Path) -> None:
-        """Full E2E validation passes with valid fixture."""
-        # Run validation via docker compose exec spark
+        """Full E2E validation passes with valid fixture.
+
+        This test:
+        1. Uploads the fixture to landing zone
+        2. Runs the esco-bronze-e2e validator which reads from landing
+        """
+        # Step 1: Upload fixture to landing zone
+        upload_cmd = [
+            "uv",
+            "run",
+            "skill-radar",
+            "esco",
+            "upload",
+            "--version",
+            "v1.0.0",
+            "--lang",
+            "fr",
+            "--file",
+            str(fixture_zip),
+            "--force",
+        ]
+        upload_result = subprocess.run(
+            upload_cmd,
+            capture_output=True,
+            timeout=60,
+            cwd=PROJECT_ROOT,
+        )
+        if upload_result.returncode != 0:
+            pytest.skip(f"Upload failed: {upload_result.stderr.decode()}")
+
+        # Step 2: Run E2E validation via docker compose exec spark
         cmd = [
             "docker",
             "compose",
@@ -133,15 +167,14 @@ class TestEscoBronzeE2E:
             "spark",
             "bash",
             "-lc",
-            f"uv run skill-radar validate esco-bronze-e2e "
-            f"--version v1.0.0 --lang fr "
-            f"--file /opt/skillradar/{fixture_zip}",
+            "uv run skill-radar validate esco-bronze-e2e --version v1.0.0 --lang fr",
         ]
 
         result = subprocess.run(
             cmd,
             capture_output=True,
             timeout=300,  # 5 minutes for full E2E
+            cwd=PROJECT_ROOT,
         )
 
         stdout = result.stdout.decode()
@@ -156,9 +189,9 @@ class TestEscoBronzeE2E:
 
     @pytest.mark.skipif(not spark_available(), reason="Spark container not available")
     @pytest.mark.skipif(not minio_available(), reason="MinIO not available")
-    def test_bronze_e2e_via_docker_flag(self, fixture_zip: Path) -> None:
-        """E2E validation works with --via-docker flag from host."""
-        # First upload the fixture to landing
+    def test_bronze_e2e_different_version(self, fixture_zip: Path) -> None:
+        """E2E validation works with a different version number."""
+        # First upload the fixture to landing with a different version
         upload_cmd = [
             "uv",
             "run",
@@ -178,38 +211,34 @@ class TestEscoBronzeE2E:
             upload_cmd,
             capture_output=True,
             timeout=60,
+            cwd=PROJECT_ROOT,
         )
 
         if upload_result.returncode != 0:
             print(f"Upload failed: {upload_result.stderr.decode()}")
             pytest.skip("Upload failed, cannot run E2E test")
 
-        # Then run bronze via docker (extraction only, no checks from host)
-        validate_cmd = [
-            "uv",
-            "run",
-            "skill-radar",
-            "validate",
-            "esco-bronze-e2e",
-            "--version",
-            "v1.0.1",
-            "--lang",
-            "fr",
-            "--file",
-            str(fixture_zip),
-            "--via-docker",
-            "--quiet",
+        # Run E2E validation via docker compose exec spark (must run in container)
+        cmd = [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "spark",
+            "bash",
+            "-lc",
+            "uv run skill-radar validate esco-bronze-e2e --version v1.0.1 --lang fr --quiet",
         ]
 
         result = subprocess.run(
-            validate_cmd,
+            cmd,
             capture_output=True,
             timeout=300,
+            cwd=PROJECT_ROOT,
         )
 
-        # In via-docker mode, bronze checks are skipped from host
-        # So we expect success (bronze extraction worked)
-        assert result.returncode == 0, f"Via-docker E2E failed: {result.returncode}"
+        # E2E validation should succeed after upload
+        assert result.returncode == 0, f"E2E validation failed: {result.returncode}"
 
 
 class TestValidationReportOutput:
@@ -229,6 +258,7 @@ class TestValidationReportOutput:
             capture_output=True,
             timeout=30,
             env=env,
+            cwd=PROJECT_ROOT,
         )
 
         # Check for report file
