@@ -60,6 +60,7 @@ class ExitCode(IntEnum):
     LANDING_FAILURE = 20
     BRONZE_FAILURE = 30
     SILVER_FAILURE = 40
+    GOLD_FAILURE = 45
     UNEXPECTED = 50
 
 
@@ -224,6 +225,10 @@ def exit_code_for_validator(validator_name: str) -> ExitCode:
         return ExitCode.LANDING_FAILURE
     if "bronze" in validator_name.lower():
         return ExitCode.BRONZE_FAILURE
+    if "gold" in validator_name.lower():
+        return ExitCode.GOLD_FAILURE
+    if "silver" in validator_name.lower():
+        return ExitCode.SILVER_FAILURE
     return ExitCode.UNEXPECTED
 
 

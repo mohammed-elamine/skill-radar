@@ -232,3 +232,89 @@ class LakeLayout:
             sr.sr_silver.adzuna_jobs
         """
         return self.iceberg_table_fqn("silver", "adzuna", "jobs", catalog=catalog, raw=False)
+
+    # -- ESCO Silver convenience helpers -----------------------------------
+
+    def esco_silver_skills_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the ESCO Silver skills table.
+
+        Example::
+
+            sr.sr_silver.esco_skills
+        """
+        return self.iceberg_table_fqn("silver", "esco", "skills", catalog=catalog, raw=False)
+
+    def esco_silver_occupations_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the ESCO Silver occupations table.
+
+        Example::
+
+            sr.sr_silver.esco_occupations
+        """
+        return self.iceberg_table_fqn("silver", "esco", "occupations", catalog=catalog, raw=False)
+
+    def esco_silver_relations_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the ESCO Silver relations table.
+
+        Example::
+
+            sr.sr_silver.esco_relations
+        """
+        return self.iceberg_table_fqn("silver", "esco", "relations", catalog=catalog, raw=False)
+
+    # -- Gold convenience helpers ------------------------------------------
+
+    def gold_job_skill_matches_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold job-skill matches table.
+
+        Example::
+
+            sr.sr_gold.gold_job_skill_matches
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "job_skill_matches", catalog=catalog, raw=False
+        )
+
+    def gold_job_occupation_matches_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold job-occupation matches table.
+
+        Example::
+
+            sr.sr_gold.gold_job_occupation_matches
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "job_occupation_matches", catalog=catalog, raw=False
+        )
+
+    def gold_skill_demand_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold daily skill demand KPI table.
+
+        Example::
+
+            sr.sr_gold.gold_skill_demand_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "skill_demand_daily", catalog=catalog, raw=False
+        )
+
+    def gold_salary_by_skill_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold daily salary-by-skill KPI table.
+
+        Example::
+
+            sr.sr_gold.gold_salary_by_skill_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "salary_by_skill_daily", catalog=catalog, raw=False
+        )
+
+    def gold_occupation_skill_graph_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold occupation-skill graph table.
+
+        Example::
+
+            sr.sr_gold.gold_occupation_skill_graph
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "occupation_skill_graph", catalog=catalog, raw=False
+        )

@@ -85,6 +85,22 @@ Table naming principles:
 
 ---
 
+## Gold layer tables
+
+All Gold tables live in the `sr.sr_gold` namespace, partitioned by `(ingestion_date, country)`.
+
+| Table FQN | Grain | Description |
+|---|---|---|
+| `sr.sr_gold.gold_job_skill_matches` | (job_id, skill_uri, country, ingestion_date) | Deterministic ESCO skill matches per job via exact dictionary matching |
+| `sr.sr_gold.gold_job_occupation_matches` | (job_id, occupation_uri, match_method, country, ingestion_date) | ESCO occupation matches per job (title-based + relation-inferred) |
+| `sr.sr_gold.gold_skill_demand_daily` | (skill_uri, country, ingestion_date) | Daily skill demand aggregates (job count, company count, salary stats) |
+| `sr.sr_gold.gold_salary_by_skill_daily` | (skill_uri, country, ingestion_date) | Daily salary metrics per skill (for salary-populated jobs only) |
+| `sr.sr_gold.gold_occupation_skill_graph` | (occupation_uri, skill_uri, country, ingestion_date) | Occupation-skill co-occurrence graph with market evidence counts |
+
+Gold lineage columns: `gold_run_id`, `gold_generated_at_utc`, `esco_version`, `esco_lang`, `adzuna_silver_run_id`.
+
+---
+
 ## Why this structure?
 - **Auditability**: you can replay from Bronze
 - **Reproducibility**: version/dt are explicit

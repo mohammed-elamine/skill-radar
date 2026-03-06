@@ -8,6 +8,7 @@ Provides a thin wrapper around the core validation framework:
 - skill-radar validate bronze (group validator)
 - skill-radar validate adzuna-bronze
 - skill-radar validate adzuna-silver
+- skill-radar validate gold
 """
 
 from __future__ import annotations
@@ -695,6 +696,108 @@ def validate_adzuna_silver(country, ingestion_date, upload, quiet):
 
         finalize_logging()
         sys.exit(ExitCode.OK if report.passed else ExitCode.SILVER_FAILURE)
+
+    finally:
+        with contextlib.suppress(Exception):
+            spark.stop()
+
+
+# ---------------------------------------------------------------------------
+# Gold validation commands
+# ---------------------------------------------------------------------------
+
+
+@validate_group.command("gold")
+@click.option("--ingestion-date", "ingestion_date", required=True, help="Adzuna date YYYY-MM-DD.")
+@click.option("--country", required=True, help="Country code (e.g. fr).")
+@click.option("--esco-version", "esco_version", required=True, help="ESCO version (e.g. v1.2.1).")
+@click.option("--esco-lang", "esco_lang", required=True, help="ESCO language (e.g. fr).")
+@click.option("--upload", is_flag=True, default=False, help="Upload report to S3 logs bucket")
+@click.option("--quiet", is_flag=True, default=False, help="Suppress console output")
+def validate_gold(
+    ingestion_date: str,
+    country: str,
+    esco_version: str,
+    esco_lang: str,
+    upload: bool,
+    quiet: bool,
+) -> None:
+    """Validate Gold tables (requires Spark/Iceberg).
+
+    Validates all 5 Gold Iceberg tables:
+    - gold_job_skill_matches
+    - gold_job_occupation_matches
+    - gold_skill_demand_daily
+    - gold_salary_by_skill_daily
+    - gold_occupation_skill_graph
+
+    Checks include: table exists, non-empty partition, schema, uniqueness,
+    score ranges, salary coherence, and referential integrity.
+
+    Run inside Spark container or with pyspark installed.
+    """
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        click.echo(
+            "Error: PySpark is not installed in this environment.\n"
+            "Run this validation inside the Spark container:\n\n"
+            "  docker compose exec -T spark bash -lc \\\n"
+            f'    "uv run skill-radar validate gold --ingestion-date {ingestion_date} '
+            f'--country {country} --esco-version {esco_version} --esco-lang {esco_lang}"\n'
+        )
+        sys.exit(ExitCode.GOLD_FAILURE)
+
+    ctx = init_logging("validate_gold", enable_file=True)
+    set_context(dataset="gold")
+    config = load_platform_config()
+
+    spark = (
+        SparkSession.builder.appName("validate_gold")
+        .config("spark.sql.codegen.wholeStage", "false")
+        .config("spark.sql.parquet.enableVectorizedReader", "false")
+        .config("spark.sql.adaptive.enabled", "false")
+        .getOrCreate()
+    )
+    spark_app_id = None
+    try:
+        try:
+            spark_app_id = spark.sparkContext.applicationId
+            set_context(spark_app_id=spark_app_id)
+        except Exception:
+            spark_app_id = None
+
+        from skill_radar.platform.validate.checks.gold import get_gold_checks
+
+        checks = get_gold_checks(
+            spark,
+            config,
+            ingestion_date=ingestion_date,
+            country=country,
+            esco_version=esco_version,
+            esco_lang=esco_lang,
+        )
+
+        report = run_checks(
+            checks,
+            validator_name="gold",
+            run_id=ctx.run_id,
+            quiet=quiet,
+        )
+
+        report.artifacts["spark_app_id"] = spark_app_id or "unavailable"
+        report.artifacts["ingestion_date"] = ingestion_date
+        report.artifacts["country"] = country
+        report.artifacts["esco_version"] = esco_version
+        report.artifacts["esco_lang"] = esco_lang
+
+        local_path, _s3_key = finalize_report(report, config=config, upload_s3=upload)
+
+        if not quiet:
+            print_footer(report, str(local_path))
+
+        finalize_logging()
+        sys.exit(ExitCode.OK if report.passed else ExitCode.GOLD_FAILURE)
 
     finally:
         with contextlib.suppress(Exception):
