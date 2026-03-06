@@ -327,3 +327,108 @@ def bronze(
         sys.exit(EXIT_BRONZE_ERROR)
     finally:
         spark.stop()
+
+
+# ---------------------------------------------------------------------------
+# Silver formatting (Spark job)
+# ---------------------------------------------------------------------------
+
+EXIT_SILVER_ERROR = 7
+
+
+@esco_group.command()
+@click.option("--version", required=True, help="Artifact version (e.g. v1.2.1)")
+@click.option("--lang", required=True, help="Language code (e.g. fr)")
+@click.option(
+    "--entities",
+    default=None,
+    help="Comma-separated subset of entities (default: all)",
+)
+@click.option("--dry-run", is_flag=True, default=False, help="Validate plan without writing")
+def silver(
+    version: str,
+    lang: str,
+    entities: str | None,
+    dry_run: bool,
+) -> None:
+    """Run ESCO Silver formatting (Bronze → Silver Iceberg).
+
+    Requires the Spark container (run via *docker compose exec spark*)
+    or a local Spark installation with the Iceberg catalog configured.
+
+    Reads from Bronze tables and writes typed + normalized Silver tables:
+    - sr.sr_silver.esco_skills
+    - sr.sr_silver.esco_occupations
+    - sr.sr_silver.esco_relations
+    """
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        click.echo(
+            "Error: PySpark is not installed in this environment.\n"
+            "Use spark-submit inside the Spark container instead:\n\n"
+            "  docker compose exec -T spark bash -lc \\\n"
+            f'    "uv run skill-radar esco silver --version {version} --lang {lang}"\n'
+        )
+        sys.exit(EXIT_SILVER_ERROR)
+
+    from skill_radar.domains.esco.silver.format import (
+        run_silver_format,
+        upload_run_summary,
+    )
+
+    ctx = init_logging("esco_silver_format", enable_file=not dry_run)
+    set_context(dataset="esco", version=version, lang=lang)
+
+    spark = (
+        SparkSession.builder.appName(f"esco_silver_{version}_{lang}")
+        # mitigate JVM crashes in scans
+        .config("spark.sql.codegen.wholeStage", "false")
+        .config("spark.sql.parquet.enableVectorizedReader", "false")
+        .config("spark.sql.adaptive.enabled", "false")
+        .getOrCreate()
+    )
+    set_context(spark_app_id=spark.sparkContext.applicationId)
+
+    entity_list = entities.split(",") if entities else None
+
+    try:
+        result = run_silver_format(
+            spark,
+            version=version,
+            lang=lang,
+            entities=entity_list,
+            dry_run=dry_run,
+            run_id=ctx.run_id,
+        )
+
+        if result.success:
+            click.echo("")
+            if dry_run:
+                click.echo("  [DRY-RUN] Silver formatting plan validated.")
+            else:
+                click.echo("  Silver formatting complete.")
+                for er in result.entities:
+                    click.echo(
+                        f"    {er.entity}: {er.input_row_count} → {er.output_row_count} rows "
+                        f"({er.duplicates_removed} dupes) → {er.table} [{er.status}]"
+                    )
+                upload_run_summary(result)
+            finalize_logging()
+            sys.exit(EXIT_SUCCESS)
+
+        click.echo("")
+        click.echo("  Silver formatting failed:")
+        for er in result.entities:
+            if er.status == "failed":
+                click.echo(f"    {er.entity}: {er.error}")
+        finalize_logging()
+        sys.exit(EXIT_SILVER_ERROR)
+
+    except Exception as exc:
+        logger.exception("Silver formatting failed")
+        click.echo(f"\n  Fatal error: {exc}")
+        finalize_logging()
+        sys.exit(EXIT_SILVER_ERROR)
+    finally:
+        spark.stop()

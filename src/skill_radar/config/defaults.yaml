@@ -36,3 +36,8 @@ logging:
   file_format: json
   upload: false
   logs_bucket: skillradar-logs
+
+validation:
+  esco:
+    silver:
+      min_relation_fk_coverage: 0.99
