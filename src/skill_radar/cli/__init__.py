@@ -15,6 +15,7 @@ import click
 
 from .adzuna import adzuna_group
 from .esco import esco_group
+from .gold import gold_group
 from .infra import infra_group
 from .run import run_group
 from .validate import validate_group
@@ -27,6 +28,7 @@ def main() -> None:
 
 main.add_command(adzuna_group, name="adzuna")
 main.add_command(esco_group, name="esco")
+main.add_command(gold_group, name="gold")
 main.add_command(infra_group, name="infra")
 main.add_command(run_group, name="run")
 main.add_command(validate_group, name="validate")
