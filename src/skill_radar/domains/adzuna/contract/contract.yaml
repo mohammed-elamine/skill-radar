@@ -1,0 +1,52 @@
+dataset: adzuna
+
+source:
+  provider: Adzuna
+  acquisition_method: api
+  provider_url: https://developer.adzuna.com
+
+supported_countries:
+  - code: fr
+    api_country_code: fr
+    label: France
+
+refresh_cadence: daily
+
+extraction_defaults:
+  results_per_page: 50
+  max_pages_per_run: 20
+  request_timeout_seconds: 30
+  max_retries: 3
+  backoff_seconds: 2
+
+extraction_presets:
+  default_fr:
+    country: fr
+    what: ""
+    where: ""
+    category: ""
+    max_days_old: 7
+    sort_by: date
+    full_time: null
+    part_time: null
+    salary_min: null
+    salary_max: null
+
+field_expectations:
+  job_identifiers:
+    - id
+    - adref
+  important_fields:
+    - title
+    - description
+    - created
+    - redirect_url
+    - category
+    - company
+    - location
+  contract_time_values:
+    - full_time
+    - part_time
+  contract_type_values:
+    - permanent
+    - contract

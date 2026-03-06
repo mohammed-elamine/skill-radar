@@ -203,3 +203,32 @@ class LakeLayout:
             data/bronze/taxonomy/esco/skills
         """
         return f"{self._root}/{self._layer_name(layer)}/{domain}/{source}/{entity}"
+
+    # -- Adzuna convenience helpers ----------------------------------------
+
+    def adzuna_bronze_jobs_raw_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Adzuna Bronze raw jobs table.
+
+        Example::
+
+            sr.sr_bronze.adzuna_jobs_raw
+        """
+        return self.iceberg_table_fqn("bronze", "adzuna", "jobs", catalog=catalog, raw=True)
+
+    def adzuna_bronze_request_log_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Adzuna Bronze request log table.
+
+        Example::
+
+            sr.sr_bronze.adzuna_request_log_raw
+        """
+        return self.iceberg_table_fqn("bronze", "adzuna", "request_log", catalog=catalog, raw=True)
+
+    def adzuna_silver_jobs_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Adzuna Silver jobs table.
+
+        Example::
+
+            sr.sr_silver.adzuna_jobs
+        """
+        return self.iceberg_table_fqn("silver", "adzuna", "jobs", catalog=catalog, raw=False)
