@@ -218,6 +218,7 @@ def run_bronze_extraction(
     country: str | None = None,
     max_pages: int | None = None,
     results_per_page: int | None = None,
+    ingestion_date: str | None = None,
     run_id: str | None = None,
     config: PlatformSettings | None = None,
 ) -> BronzeRunResult:
@@ -239,6 +240,10 @@ def run_bronze_extraction(
         Maximum pages to fetch. Defaults to config value.
     results_per_page:
         Results per page. Defaults to config value.
+    ingestion_date:
+        Explicit ingestion date in ``YYYY-MM-DD`` format.  When *None*
+        (the default) the current UTC date is used.  Passing an
+        explicit date is required for orchestrated / backfill runs.
     run_id:
         Run identifier for lineage. Defaults from logging context.
     config:
@@ -264,7 +269,7 @@ def run_bronze_extraction(
     # Resolve run metadata.
     now_utc = datetime.now(UTC)
     extracted_at_utc = now_utc.isoformat()
-    ingestion_date = now_utc.strftime("%Y-%m-%d")
+    ingestion_date = ingestion_date or now_utc.strftime("%Y-%m-%d")
 
     try:
         ctx = get_context()

@@ -22,7 +22,7 @@ Skill Radar follows a **modern lakehouse architecture**:
 - **Object Storage**: MinIO (S3-compatible)
 - **Table Format**: Apache Iceberg
 - **Compute Engine**: Apache Spark
-- **Orchestration (future)**: Airflow
+- **Orchestration**: Apache Airflow 2.9.3 (DockerOperator)
 - **Serving (future)**: Elasticsearch + Kibana
 
 The lake follows a structured layer model:
@@ -43,14 +43,21 @@ s3a://skillradar-lake/warehouse
 skill-radar/
 │
 ├── src/skill_radar/         # Core package (business logic)
+├── dags/                    # Airflow DAGs (orchestration only)
+│   ├── _shared/             # Shared orchestration helpers
+│   ├── adzuna_daily_pipeline.py
+│   └── esco_manual_pipeline.py
 ├── jobs/                    # Spark jobs (batch processing)
 ├── configs/                 # Spark configuration
+├── docker/                  # Custom Docker images
+│   ├── airflow/             # Airflow image
+│   └── spark/               # Spark image
 ├── tests/
 │   ├── unit/
 │   └── integration/
 ├── scripts/                 # Environment & tooling scripts
-├── docs/architecture/       # Architecture documentation
-├── docker-compose.yml       # Local lakehouse stack
+├── docs/                    # Documentation
+├── docker-compose.yml       # Local lakehouse + Airflow stack
 ├── pyproject.toml
 ├── uv.lock
 ├── Makefile
@@ -323,10 +330,42 @@ These are only required for live ingestion (not infra setup).
 
 ---
 
+# Airflow Orchestration
+
+Airflow acts as the **control-plane only** — every task launches an ephemeral Docker container from the Spark runtime image via `DockerOperator`. No business logic exists in DAG files.
+
+### Quick Start
+
+```bash
+# Start Airflow (builds custom image on first run)
+make airflow-up
+
+# Check DAGs are loaded
+make airflow-dags-list
+
+# Trigger pipelines
+make airflow-trigger-adzuna AIRFLOW_ADZUNA_DATE=2025-01-15
+make airflow-trigger-esco AIRFLOW_ESCO_VERSION=v1.2.1 AIRFLOW_ESCO_LANG=fr
+```
+
+### DAGs
+
+| DAG | Schedule | Description |
+|-----|----------|-------------|
+| `adzuna_daily_pipeline` | `0 6 * * *` | Bronze → Silver → Gold with validation |
+| `esco_manual_pipeline` | Manual | Landing → Bronze → Silver (+ optional Gold) |
+
+Web UI: http://localhost:8085 (`admin`/`admin`)
+
+See: [docs/airflow_orchestration_guide.md](docs/airflow_orchestration_guide.md)
+
+---
+
 # Current Milestone
 
 - **Milestone 1** — Lakehouse Infrastructure Bootstrap
 - **Milestone 2** — Bronze Ingestion (ESCO + Adzuna)
+- **Milestone 3** — Airflow Orchestration (DockerOperator)
 
 ---
 
