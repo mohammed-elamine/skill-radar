@@ -6,6 +6,8 @@ Provides a thin wrapper around the core validation framework:
 - skill-radar validate esco-bronze
 - skill-radar validate esco-bronze-e2e
 - skill-radar validate bronze (group validator)
+- skill-radar validate adzuna-bronze
+- skill-radar validate adzuna-silver
 """
 
 from __future__ import annotations
@@ -558,6 +560,133 @@ def validate_esco_silver(
         report.artifacts["spark_app_id"] = spark_app_id or "unavailable"
         report.artifacts["version"] = version
         report.artifacts["lang"] = lang
+
+        local_path, _s3_key = finalize_report(report, config=config, upload_s3=upload)
+
+        if not quiet:
+            print_footer(report, str(local_path))
+
+        finalize_logging()
+        sys.exit(ExitCode.OK if report.passed else ExitCode.SILVER_FAILURE)
+
+    finally:
+        with contextlib.suppress(Exception):
+            spark.stop()
+
+
+# ---------------------------------------------------------------------------
+# Adzuna validation commands
+# ---------------------------------------------------------------------------
+
+
+@validate_group.command("adzuna-bronze")
+@click.option("--country", default=None, help="Country scope (default: from config).")
+@click.option("--ingestion-date", "ingestion_date", default=None, help="Ingestion date YYYY-MM-DD.")
+@click.option("--upload", is_flag=True, default=False)
+@click.option("--quiet", is_flag=True, default=False)
+def validate_adzuna_bronze(country, ingestion_date, upload, quiet):
+    """Validate Adzuna bronze tables (requires Spark/Iceberg)."""
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        click.echo("Error: PySpark is not installed. Adzuna bronze validation requires Spark.")
+        sys.exit(ExitCode.BRONZE_FAILURE)
+
+    ctx = init_logging("validate_adzuna_bronze", enable_file=True)
+    set_context(dataset="adzuna")
+    config = load_platform_config()
+
+    spark = (
+        SparkSession.builder.appName("validate_adzuna_bronze")
+        .config("spark.sql.codegen.wholeStage", "false")
+        .config("spark.sql.parquet.enableVectorizedReader", "false")
+        .config("spark.sql.adaptive.enabled", "false")
+        .getOrCreate()
+    )
+    spark_app_id = None
+    try:
+        try:
+            spark_app_id = spark.sparkContext.applicationId
+            set_context(spark_app_id=spark_app_id)
+        except Exception:
+            spark_app_id = None
+
+        from skill_radar.platform.validate.checks.adzuna import get_bronze_checks
+
+        checks = get_bronze_checks(spark, config, country=country, ingestion_date=ingestion_date)
+
+        report = run_checks(
+            checks,
+            validator_name="adzuna_bronze",
+            run_id=ctx.run_id,
+            quiet=quiet,
+        )
+        report.artifacts["spark_app_id"] = spark_app_id or "unavailable"
+        if country:
+            report.artifacts["country"] = country
+        if ingestion_date:
+            report.artifacts["ingestion_date"] = ingestion_date
+
+        local_path, _s3_key = finalize_report(report, config=config, upload_s3=upload)
+
+        if not quiet:
+            print_footer(report, str(local_path))
+
+        finalize_logging()
+        sys.exit(ExitCode.OK if report.passed else ExitCode.BRONZE_FAILURE)
+
+    finally:
+        with contextlib.suppress(Exception):
+            spark.stop()
+
+
+@validate_group.command("adzuna-silver")
+@click.option("--country", default=None, help="Country scope (default: from config).")
+@click.option("--ingestion-date", "ingestion_date", default=None, help="Ingestion date YYYY-MM-DD.")
+@click.option("--upload", is_flag=True, default=False)
+@click.option("--quiet", is_flag=True, default=False)
+def validate_adzuna_silver(country, ingestion_date, upload, quiet):
+    """Validate Adzuna silver tables (requires Spark/Iceberg)."""
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        click.echo("Error: PySpark is not installed. Adzuna silver validation requires Spark.")
+        sys.exit(ExitCode.SILVER_FAILURE)
+
+    ctx = init_logging("validate_adzuna_silver", enable_file=True)
+    set_context(dataset="adzuna")
+    config = load_platform_config()
+
+    spark = (
+        SparkSession.builder.appName("validate_adzuna_silver")
+        .config("spark.sql.codegen.wholeStage", "false")
+        .config("spark.sql.parquet.enableVectorizedReader", "false")
+        .config("spark.sql.adaptive.enabled", "false")
+        .getOrCreate()
+    )
+    spark_app_id = None
+    try:
+        try:
+            spark_app_id = spark.sparkContext.applicationId
+            set_context(spark_app_id=spark_app_id)
+        except Exception:
+            spark_app_id = None
+
+        from skill_radar.platform.validate.checks.adzuna import get_silver_checks
+
+        checks = get_silver_checks(spark, config, country=country, ingestion_date=ingestion_date)
+
+        report = run_checks(
+            checks,
+            validator_name="adzuna_silver",
+            run_id=ctx.run_id,
+            quiet=quiet,
+        )
+        report.artifacts["spark_app_id"] = spark_app_id or "unavailable"
+        if country:
+            report.artifacts["country"] = country
+        if ingestion_date:
+            report.artifacts["ingestion_date"] = ingestion_date
 
         local_path, _s3_key = finalize_report(report, config=config, upload_s3=upload)
 

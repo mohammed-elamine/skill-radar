@@ -27,6 +27,14 @@ _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
         "silver",
         "min_relation_fk_coverage",
     ),
+    "SKILLRADAR_ADZUNA_BASE_URL": ("adzuna", "base_url"),
+    "SKILLRADAR_ADZUNA_DEFAULT_COUNTRY": ("adzuna", "default_country"),
+    "SKILLRADAR_ADZUNA_RESULTS_PER_PAGE": ("adzuna", "results_per_page"),
+    "SKILLRADAR_ADZUNA_MAX_PAGES": ("adzuna", "max_pages_per_run"),
+    "SKILLRADAR_ADZUNA_TIMEOUT": ("adzuna", "request_timeout_seconds"),
+    "SKILLRADAR_ADZUNA_MAX_RETRIES": ("adzuna", "max_retries"),
+    "SKILLRADAR_ADZUNA_BACKOFF": ("adzuna", "backoff_seconds"),
+    "SKILLRADAR_ADZUNA_DEFAULT_PRESET": ("adzuna", "default_preset"),
 }
 
 

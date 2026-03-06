@@ -221,6 +221,72 @@ make upload-esco-local FILE=path/to/esco.zip VERSION=v1.2.1 LANG=fr
 
 ---
 
+# Adzuna Job Postings Ingestion
+
+Adzuna provides a live REST API for job postings. The pipeline fetches job data daily, captures it in Bronze (raw fidelity), then normalizes it to Silver for analytics.
+
+## Prerequisites
+
+| Variable | Description |
+|----------|-------------|
+| `ADZUNA_APP_ID` | Adzuna API application ID |
+| `ADZUNA_APP_KEY` | Adzuna API application key |
+
+Register at [Adzuna Developer Portal](https://developer.adzuna.com/) and add credentials to `.env`.
+
+## Bronze — Raw API Extraction
+
+Fetches job postings from the Adzuna Search API and persists them as-is to Iceberg tables. Each API field is preserved in a `raw_payload_json` column for full fidelity. Bronze is append-only — re-running the same day adds duplicate rows (Silver handles deduplication).
+
+```bash
+# Default: France, default_fr preset
+make adzuna-bronze
+
+# Custom country and pagination
+make adzuna-bronze ADZUNA_COUNTRY=fr ADZUNA_MAX_PAGES=5
+
+# Validate bronze tables
+make validate-adzuna-bronze
+```
+
+**Tables created:**
+- `sr.sr_bronze.adzuna_jobs_raw` — one row per job posting, partitioned by `(ingestion_date, country)`
+- `sr.sr_bronze.adzuna_request_log_raw` — one row per API page request (lineage/observability)
+
+## Silver — Normalization & Deduplication
+
+Reads from Bronze, applies type parsing, location hierarchy derivation, salary computation, and deduplication by `(country, job_id)` keeping the latest extraction.
+
+```bash
+# Default: all countries from latest Bronze
+make adzuna-silver
+
+# Specific country and date
+make adzuna-silver ADZUNA_COUNTRY=fr ADZUNA_INGESTION_DATE=2025-01-15
+
+# Validate silver tables
+make validate-adzuna-silver
+```
+
+**Table created:**
+- `sr.sr_silver.adzuna_jobs` — deduplicated, typed job facts, partitioned by `(country, ingestion_date)`
+
+## Full Pipeline
+
+Run Bronze extraction → validation → Silver formatting → validation in one command:
+
+```bash
+make run-adzuna
+```
+
+## Scope & Cadence
+
+- **Countries:** France (`fr`) initially; extensible via `contract.yaml`
+- **Refresh cadence:** Daily (Bronze appends; Silver overwrites per partition)
+- **Extraction presets:** Defined in `src/skill_radar/domains/adzuna/contract/contract.yaml`
+
+---
+
 # Lakehouse Layout
 
 Storage contract:

@@ -1,4 +1,10 @@
-"""Adzuna API settings."""
+"""Adzuna API credentials — loaded from environment variables at runtime.
+
+Credentials are **never** stored in defaults.yaml or contract files.
+Use ``get_settings()`` or ``Settings.from_env()`` when an Adzuna command
+is invoked; this avoids breaking unrelated commands when Adzuna env vars
+are absent.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +16,12 @@ load_dotenv()
 
 
 class Settings:
-    """Adzuna API credentials loaded from environment variables."""
+    """Adzuna API credentials loaded from environment variables.
+
+    Required environment variables:
+    - ``ADZUNA_APP_ID``
+    - ``ADZUNA_APP_KEY``
+    """
 
     def __init__(self, adzuna_app_id: str, adzuna_app_key: str) -> None:
         self.adzuna_app_id = adzuna_app_id
@@ -18,9 +29,19 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> Settings:
+        """Create settings from environment variables.
+
+        Raises
+        ------
+        KeyError
+            If any required credential environment variable is missing.
+        """
         missing = [k for k in ("ADZUNA_APP_ID", "ADZUNA_APP_KEY") if not os.getenv(k)]
         if missing:
-            raise KeyError(f"Missing env vars: {', '.join(missing)}")
+            raise KeyError(
+                f"Missing Adzuna credentials: {', '.join(missing)}. "
+                "Set them in .env or export them before running Adzuna commands."
+            )
         return cls(
             adzuna_app_id=os.environ["ADZUNA_APP_ID"],
             adzuna_app_key=os.environ["ADZUNA_APP_KEY"],

@@ -278,7 +278,7 @@ _ENTITIES_FLAG = $(if $(ENTITIES),--entities $(ENTITIES),)
 DOCKER_EXEC = docker compose exec -T
 SPARK_EXEC  = $(DOCKER_EXEC) spark bash -lc
 
-.PHONY: validate-infra validate-infra-runtime validate-infra-all validate-esco-landing validate-esco-bronze validate-esco-bronze-e2e validate-bronze
+.PHONY: validate-infra validate-infra-runtime validate-infra-all validate-esco-landing validate-esco-bronze validate-esco-bronze-e2e validate-bronze validate-adzuna-bronze validate-adzuna-silver
 
 validate-infra: ## Validate infrastructure (host scope: boto3 checks only) [sources .env]
 	$(call RUN_STEP_HOST,Validate infrastructure (host),,\
@@ -385,3 +385,59 @@ run-esco-silver: ## Full ESCO silver pipeline: format → validate (VERSION=... 
 	$(SILENT)$(MAKE) silver-esco VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA= VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) validate-esco-silver VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
 	$(SILENT)bash -lc '$(call UI_OK,ESCO silver pipeline complete.)'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Adzuna Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Environment:
+#   ADZUNA_APP_ID  — Adzuna API application ID  (required; set in .env or export)
+#   ADZUNA_APP_KEY — Adzuna API application key  (required; set in .env or export)
+#
+# Usage (bronze — API extraction):
+#   make adzuna-bronze                           # defaults: country=fr, preset=default_fr
+#   make adzuna-bronze ADZUNA_COUNTRY=gb ADZUNA_MAX_PAGES=5
+#
+# Usage (silver — format + deduplicate):
+#   make adzuna-silver                           # defaults: country=fr
+#   make adzuna-silver ADZUNA_COUNTRY=fr ADZUNA_INGESTION_DATE=2025-01-15
+#
+# Usage (full pipeline):
+#   make run-adzuna                              # bronze → validate → silver → validate
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dynamic overrides for Adzuna pipeline
+ADZUNA_COUNTRY          ?= fr
+ADZUNA_PRESET           ?= default_fr
+ADZUNA_MAX_PAGES        ?=
+ADZUNA_RESULTS_PER_PAGE ?=
+ADZUNA_INGESTION_DATE   ?=
+
+# Helper: build optional Adzuna CLI flags
+_ADZUNA_MAX_PAGES_FLAG = $(if $(ADZUNA_MAX_PAGES),--max-pages $(ADZUNA_MAX_PAGES),)
+_ADZUNA_RPP_FLAG       = $(if $(ADZUNA_RESULTS_PER_PAGE),--results-per-page $(ADZUNA_RESULTS_PER_PAGE),)
+_ADZUNA_DATE_FLAG      = $(if $(ADZUNA_INGESTION_DATE),--ingestion-date $(ADZUNA_INGESTION_DATE),)
+
+.PHONY: adzuna-bronze adzuna-silver validate-adzuna-bronze validate-adzuna-silver run-adzuna
+
+adzuna-bronze: ## Run Adzuna bronze extraction (Spark): ADZUNA_COUNTRY=... ADZUNA_PRESET=...
+	$(call RUN_STEP,Run Adzuna bronze extraction (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar adzuna bronze --preset $(ADZUNA_PRESET) --country $(ADZUNA_COUNTRY) $(_ADZUNA_MAX_PAGES_FLAG) $(_ADZUNA_RPP_FLAG) $(EXTRA)")
+
+adzuna-silver: ## Run Adzuna silver formatting (Spark): ADZUNA_COUNTRY=... ADZUNA_INGESTION_DATE=...
+	$(call RUN_STEP,Run Adzuna silver formatting (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar adzuna silver --country $(ADZUNA_COUNTRY) $(_ADZUNA_DATE_FLAG) $(EXTRA)")
+
+validate-adzuna-bronze: ## Validate Adzuna bronze tables [Spark]
+	$(call RUN_STEP,Validate Adzuna bronze (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar validate adzuna-bronze $(EXTRA)")
+
+validate-adzuna-silver: ## Validate Adzuna silver tables [Spark]
+	$(call RUN_STEP,Validate Adzuna silver (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar validate adzuna-silver $(EXTRA)")
+
+run-adzuna: ## Full Adzuna pipeline: bronze → validate → silver → validate
+	$(SILENT)$(MAKE) adzuna-bronze ADZUNA_COUNTRY=$(ADZUNA_COUNTRY) ADZUNA_PRESET=$(ADZUNA_PRESET) ADZUNA_MAX_PAGES=$(ADZUNA_MAX_PAGES) ADZUNA_RESULTS_PER_PAGE=$(ADZUNA_RESULTS_PER_PAGE) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) validate-adzuna-bronze EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) adzuna-silver ADZUNA_COUNTRY=$(ADZUNA_COUNTRY) ADZUNA_INGESTION_DATE=$(ADZUNA_INGESTION_DATE) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) validate-adzuna-silver EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
+	$(SILENT)bash -lc '$(call UI_OK,Adzuna pipeline complete.)'

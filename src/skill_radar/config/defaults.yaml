@@ -37,6 +37,16 @@ logging:
   upload: false
   logs_bucket: skillradar-logs
 
+adzuna:
+  base_url: https://api.adzuna.com/v1/api
+  default_country: fr
+  results_per_page: 50
+  max_pages_per_run: 20
+  request_timeout_seconds: 30
+  max_retries: 3
+  backoff_seconds: 2
+  default_preset: default_fr
+
 validation:
   esco:
     silver:

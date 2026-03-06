@@ -1,0 +1,83 @@
+{
+  "count": 3,
+  "results": [
+    {
+      "id": "4005555501",
+      "adref": "dup001ref",
+      "title": "Ingénieur DevOps – version A",
+      "description": "Première version de l'offre DevOps.",
+      "redirect_url": "https://www.adzuna.fr/details/4005555501",
+      "created": "2025-01-12T10:00:00Z",
+      "salary_min": 48000.0,
+      "salary_max": 62000.0,
+      "salary_is_predicted": "0",
+      "latitude": 48.8566,
+      "longitude": 2.3522,
+      "location": {
+        "display_name": "Paris, Île-de-France",
+        "area": ["France", "Île-de-France", "Paris"]
+      },
+      "category": {
+        "tag": "it-jobs",
+        "label": "IT Jobs"
+      },
+      "company": {
+        "display_name": "InfraCloud"
+      },
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    },
+    {
+      "id": "4005555501",
+      "adref": "dup001ref_v2",
+      "title": "Ingénieur DevOps – version B",
+      "description": "Deuxième version (doublon) de l'offre DevOps.",
+      "redirect_url": "https://www.adzuna.fr/details/4005555501",
+      "created": "2025-01-13T11:00:00Z",
+      "salary_min": 50000.0,
+      "salary_max": 65000.0,
+      "salary_is_predicted": "1",
+      "latitude": 48.8566,
+      "longitude": 2.3522,
+      "location": {
+        "display_name": "Paris, Île-de-France",
+        "area": ["France", "Île-de-France", "Paris"]
+      },
+      "category": {
+        "tag": "it-jobs",
+        "label": "IT Jobs"
+      },
+      "company": {
+        "display_name": "InfraCloud"
+      },
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    },
+    {
+      "id": "4005555502",
+      "adref": "unique002ref",
+      "title": "SRE Senior",
+      "description": "Poste de Site Reliability Engineer.",
+      "redirect_url": "https://www.adzuna.fr/details/4005555502",
+      "created": "2025-01-14T08:30:00Z",
+      "salary_min": 55000.0,
+      "salary_max": 75000.0,
+      "salary_is_predicted": "0",
+      "latitude": 43.2965,
+      "longitude": 5.3698,
+      "location": {
+        "display_name": "Marseille, Provence-Alpes-Côte d'Azur",
+        "area": ["France", "Provence-Alpes-Côte d'Azur", "Marseille"]
+      },
+      "category": {
+        "tag": "it-jobs",
+        "label": "IT Jobs"
+      },
+      "company": {
+        "display_name": "CloudOps Méditerranée"
+      },
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    }
+  ]
+}
