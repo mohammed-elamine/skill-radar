@@ -51,8 +51,14 @@ def adzuna_group() -> None:
     type=int,
     help="Results per API page (default: from config).",
 )
+@click.option(
+    "--ingestion-date",
+    "ingestion_date",
+    default=None,
+    help="Ingestion date YYYY-MM-DD (default: current UTC date).",
+)
 @click.option("--quiet", is_flag=True, default=False, help="Suppress normal output.")
-def bronze(preset, country, max_pages, results_per_page, quiet):
+def bronze(preset, country, max_pages, results_per_page, ingestion_date, quiet):
     """Run Adzuna Bronze extraction (API → Iceberg)."""
     try:
         from pyspark.sql import SparkSession
@@ -78,6 +84,7 @@ def bronze(preset, country, max_pages, results_per_page, quiet):
             country=country,
             max_pages=max_pages,
             results_per_page=results_per_page,
+            ingestion_date=ingestion_date,
             run_id=ctx.run_id,
         )
 
