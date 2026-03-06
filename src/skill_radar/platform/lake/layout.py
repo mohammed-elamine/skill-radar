@@ -125,17 +125,39 @@ class LakeLayout:
         entity: str,
         *,
         catalog: str | None = None,
+        raw: bool = True,
     ) -> str:
         """Fully-qualified Iceberg table name.
 
-        Example::
+        Parameters
+        ----------
+        layer:
+            Lake layer (e.g. "bronze", "silver", "gold").
+        dataset:
+            Dataset name (e.g. "esco").
+        entity:
+            Entity name (e.g. "skills", "occupations", "relations").
+        catalog:
+            Optional catalog override.
+        raw:
+            If True (default), append ``_raw`` suffix (Bronze convention).
+            If False, use clean entity name (Silver/Gold convention).
+
+        Examples
+        --------
+        Bronze (raw=True, default)::
 
             sr.sr_bronze.esco_skills_raw
+
+        Silver (raw=False)::
+
+            sr.sr_silver.esco_skills
         """
         cat = catalog or self.iceberg_catalog
         ns_prefix = self.iceberg_namespace_prefix
         namespace = f"{ns_prefix}_{layer}"
-        return f"{cat}.{namespace}.{dataset}_{entity}_raw"
+        suffix = "_raw" if raw else ""
+        return f"{cat}.{namespace}.{dataset}_{entity}{suffix}"
 
     def iceberg_namespace(
         self,

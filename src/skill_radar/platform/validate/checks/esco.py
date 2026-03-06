@@ -1201,3 +1201,574 @@ def run_esco_bronze_e2e(
         )
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Silver Checks
+# ---------------------------------------------------------------------------
+
+
+def check_silver_table_partition_non_empty(
+    spark: SparkSession,
+    table_fqn: str,
+    version: str,
+    lang: str,
+) -> CheckResult:
+    """Check that a Silver table has rows for the given partition.
+
+    Parameters
+    ----------
+    spark:
+        Active SparkSession.
+    table_fqn:
+        Fully-qualified table name.
+    version:
+        Version to filter by.
+    lang:
+        Language to filter by.
+    """
+    table_short = table_fqn.split(".")[-1]
+    try:
+        count_df = spark.sql(
+            f"SELECT COUNT(*) AS cnt FROM {table_fqn} "
+            f"WHERE version = '{version}' AND lang = '{lang}'"
+        )
+        row_count = count_df.collect()[0]["cnt"]
+
+        if row_count > 0:
+            return create_check(
+                name=f"silver.table.non_empty.{table_short}",
+                description=f"Table {table_short} has rows for partition",
+                passed=True,
+                detail=f"row_count={row_count}",
+                metrics={"row_count": row_count},
+            )
+        return create_check(
+            name=f"silver.table.non_empty.{table_short}",
+            description=f"Table {table_short} has rows for partition",
+            passed=False,
+            detail=f"No rows found (version={version}, lang={lang})",
+        )
+    except Exception as exc:
+        return create_check(
+            name=f"silver.table.non_empty.{table_short}",
+            description=f"Table {table_short} has rows for partition",
+            passed=False,
+            detail=str(exc)[:200],
+        )
+
+
+def check_silver_uniqueness_skills(
+    spark: SparkSession,
+    table_fqn: str,
+    version: str,
+    lang: str,
+) -> CheckResult:
+    """Check that skills are unique by (concept_uri, version, lang).
+
+    Parameters
+    ----------
+    spark:
+        Active SparkSession.
+    table_fqn:
+        Fully-qualified table name.
+    version:
+        Version to filter by.
+    lang:
+        Language to filter by.
+    """
+    table_short = table_fqn.split(".")[-1]
+    try:
+        dup_df = spark.sql(f"""
+            SELECT concept_uri, COUNT(*) as cnt
+            FROM {table_fqn}
+            WHERE version = '{version}' AND lang = '{lang}'
+            GROUP BY concept_uri
+            HAVING COUNT(*) > 1
+        """)
+        dup_count = dup_df.count()
+
+        if dup_count == 0:
+            return create_check(
+                name=f"silver.uniqueness.{table_short}",
+                description=f"Table {table_short} has unique keys",
+                passed=True,
+                detail="No duplicates found",
+            )
+        return create_check(
+            name=f"silver.uniqueness.{table_short}",
+            description=f"Table {table_short} has unique keys",
+            passed=False,
+            detail=f"{dup_count} duplicate concept_uri values found",
+            metrics={"duplicate_keys": dup_count},
+        )
+    except Exception as exc:
+        return create_check(
+            name=f"silver.uniqueness.{table_short}",
+            description=f"Table {table_short} has unique keys",
+            passed=False,
+            detail=str(exc)[:200],
+        )
+
+
+def check_silver_uniqueness_relations(
+    spark: SparkSession,
+    table_fqn: str,
+    version: str,
+    lang: str,
+) -> CheckResult:
+    """Check relations uniqueness by (occupation_uri, skill_uri, relation_type, version, lang).
+
+    Parameters
+    ----------
+    spark:
+        Active SparkSession.
+    table_fqn:
+        Fully-qualified table name.
+    version:
+        Version to filter by.
+    lang:
+        Language to filter by.
+    """
+    table_short = table_fqn.split(".")[-1]
+    try:
+        dup_df = spark.sql(f"""
+            SELECT occupation_uri, skill_uri, relation_type, COUNT(*) as cnt
+            FROM {table_fqn}
+            WHERE version = '{version}' AND lang = '{lang}'
+            GROUP BY occupation_uri, skill_uri, relation_type
+            HAVING COUNT(*) > 1
+        """)
+        dup_count = dup_df.count()
+
+        if dup_count == 0:
+            return create_check(
+                name=f"silver.uniqueness.{table_short}",
+                description=f"Table {table_short} has unique edge keys",
+                passed=True,
+                detail="No duplicates found",
+            )
+        return create_check(
+            name=f"silver.uniqueness.{table_short}",
+            description=f"Table {table_short} has unique edge keys",
+            passed=False,
+            detail=f"{dup_count} duplicate edge keys found",
+            metrics={"duplicate_keys": dup_count},
+        )
+    except Exception as exc:
+        return create_check(
+            name=f"silver.uniqueness.{table_short}",
+            description=f"Table {table_short} has unique edge keys",
+            passed=False,
+            detail=str(exc)[:200],
+        )
+
+
+def check_silver_referential_integrity(
+    spark: SparkSession,
+    config: PlatformSettings,
+    version: str,
+    lang: str,
+) -> list[CheckResult]:
+    """Check referential integrity: relations → occupations/skills.
+
+    Computes FK coverage ratios and fails if below threshold.
+
+    Parameters
+    ----------
+    spark:
+        Active SparkSession.
+    config:
+        Platform configuration.
+    version:
+        Version to filter by.
+    lang:
+        Language to filter by.
+
+    Returns
+    -------
+    list[CheckResult]:
+        Two check results: occupation coverage and skill coverage.
+    """
+    layout = LakeLayout(config)
+    threshold = config.validation.esco.silver.min_relation_fk_coverage
+
+    relations_fqn = layout.iceberg_table_fqn("silver", "esco", "relations", raw=False)
+    occupations_fqn = layout.iceberg_table_fqn("silver", "esco", "occupations", raw=False)
+    skills_fqn = layout.iceberg_table_fqn("silver", "esco", "skills", raw=False)
+
+    results: list[CheckResult] = []
+
+    # Check occupation FK coverage
+    try:
+        # Count total relations
+        total_df = spark.sql(f"""
+            SELECT COUNT(*) as cnt FROM {relations_fqn}
+            WHERE version = '{version}' AND lang = '{lang}'
+        """)
+        total_relations = total_df.collect()[0]["cnt"]
+
+        if total_relations == 0:
+            results.append(
+                create_check(
+                    name="silver.fk.occupation_coverage",
+                    description="Relations → Occupations FK coverage",
+                    passed=False,
+                    detail="No relations found in partition",
+                )
+            )
+            results.append(
+                create_check(
+                    name="silver.fk.skill_coverage",
+                    description="Relations → Skills FK coverage",
+                    passed=False,
+                    detail="No relations found in partition",
+                )
+            )
+            return results
+
+        # Check occupation coverage
+        occ_matched_df = spark.sql(f"""
+            SELECT COUNT(DISTINCT r.occupation_uri) as cnt
+            FROM {relations_fqn} r
+            INNER JOIN {occupations_fqn} o
+              ON r.occupation_uri = o.concept_uri
+              AND o.version = '{version}' AND o.lang = '{lang}'
+            WHERE r.version = '{version}' AND r.lang = '{lang}'
+        """)
+        occ_matched = occ_matched_df.collect()[0]["cnt"]
+
+        occ_total_df = spark.sql(f"""
+            SELECT COUNT(DISTINCT occupation_uri) as cnt
+            FROM {relations_fqn}
+            WHERE version = '{version}' AND lang = '{lang}'
+        """)
+        occ_total = occ_total_df.collect()[0]["cnt"]
+
+        occ_coverage = occ_matched / occ_total if occ_total > 0 else 0.0
+
+        if occ_coverage >= threshold:
+            results.append(
+                create_check(
+                    name="silver.fk.occupation_coverage",
+                    description="Relations → Occupations FK coverage",
+                    passed=True,
+                    detail=f"coverage={occ_coverage:.4f} >= {threshold}",
+                    metrics={
+                        "matched": occ_matched,
+                        "total": occ_total,
+                        "coverage": occ_coverage,
+                    },
+                )
+            )
+        else:
+            results.append(
+                create_check(
+                    name="silver.fk.occupation_coverage",
+                    description="Relations → Occupations FK coverage",
+                    passed=False,
+                    detail=f"coverage={occ_coverage:.4f} < {threshold}",
+                    metrics={
+                        "matched": occ_matched,
+                        "total": occ_total,
+                        "coverage": occ_coverage,
+                    },
+                )
+            )
+
+        # Check skill coverage
+        skill_matched_df = spark.sql(f"""
+            SELECT COUNT(DISTINCT r.skill_uri) as cnt
+            FROM {relations_fqn} r
+            INNER JOIN {skills_fqn} s
+              ON r.skill_uri = s.concept_uri
+              AND s.version = '{version}' AND s.lang = '{lang}'
+            WHERE r.version = '{version}' AND r.lang = '{lang}'
+        """)
+        skill_matched = skill_matched_df.collect()[0]["cnt"]
+
+        skill_total_df = spark.sql(f"""
+            SELECT COUNT(DISTINCT skill_uri) as cnt
+            FROM {relations_fqn}
+            WHERE version = '{version}' AND lang = '{lang}'
+        """)
+        skill_total = skill_total_df.collect()[0]["cnt"]
+
+        skill_coverage = skill_matched / skill_total if skill_total > 0 else 0.0
+
+        if skill_coverage >= threshold:
+            results.append(
+                create_check(
+                    name="silver.fk.skill_coverage",
+                    description="Relations → Skills FK coverage",
+                    passed=True,
+                    detail=f"coverage={skill_coverage:.4f} >= {threshold}",
+                    metrics={
+                        "matched": skill_matched,
+                        "total": skill_total,
+                        "coverage": skill_coverage,
+                    },
+                )
+            )
+        else:
+            results.append(
+                create_check(
+                    name="silver.fk.skill_coverage",
+                    description="Relations → Skills FK coverage",
+                    passed=False,
+                    detail=f"coverage={skill_coverage:.4f} < {threshold}",
+                    metrics={
+                        "matched": skill_matched,
+                        "total": skill_total,
+                        "coverage": skill_coverage,
+                    },
+                )
+            )
+
+    except Exception as exc:
+        results.append(
+            create_check(
+                name="silver.fk.coverage",
+                description="Referential integrity coverage",
+                passed=False,
+                detail=str(exc)[:200],
+            )
+        )
+
+    return results
+
+
+def get_silver_checks(
+    spark: SparkSession,
+    config: PlatformSettings,
+    version: str,
+    lang: str,
+    *,
+    entities: list[str] | None = None,
+) -> list[NamedCheck]:
+    """Return all silver check functions.
+
+    Parameters
+    ----------
+    spark:
+        Active SparkSession.
+    config:
+        Platform configuration.
+    version:
+        Artifact version.
+    lang:
+        Language code.
+    entities:
+        Subset of entities to check (defaults to all).
+
+    Returns
+    -------
+    list[NamedCheck]:
+        List of named checks ready to execute.
+    """
+    from skill_radar.platform.validate.checks.lakehouse import (
+        check_table_exists,
+        check_table_schema_contains,
+    )
+
+    layout = LakeLayout(config)
+
+    # Resolve entities
+    all_entities = ["skills", "occupations", "relations"]
+    entity_names = entities if entities else all_entities
+
+    catalog = layout.iceberg_catalog
+    namespace = layout.iceberg_namespace_name("silver")
+
+    # Check if Iceberg is configured before creating checks
+    cat_configured = _iceberg_catalog_configured(spark, catalog)
+    cat_status = _iceberg_catalog_ready(spark, catalog, expected_namespace=namespace)
+
+    if not cat_configured or not cat_status.ok:
+        reasons: list[str] = []
+        if not cat_configured:
+            reasons.append(f"Iceberg catalog '{catalog}' not configured in Spark conf")
+        if not cat_status.ok:
+            reasons.append(f"{cat_status.reason}. {cat_status.detail}")
+
+        skip_reason = " | ".join(reasons)
+        make_skip = _make_skip_factory(skip_reason)
+
+        skip_checks: list[NamedCheck] = [
+            make_skip(
+                f"silver.namespace.exists.{namespace}",
+                f"Namespace {catalog}.{namespace} exists",
+            ),
+        ]
+        for entity_name in entity_names:
+            table = f"esco_{entity_name}"
+            skip_checks.append(make_skip(f"silver.table.exists.{table}", f"Table {table} exists"))
+        return skip_checks
+
+    checks: list[NamedCheck] = []
+
+    # Namespace check
+    checks.append(
+        NamedCheck(
+            name=f"silver.namespace.exists.{namespace}",
+            description=f"Namespace {catalog}.{namespace} exists",
+            fn=lambda ns=namespace, cat=catalog: create_check(  # type: ignore[misc]
+                name=f"silver.namespace.exists.{ns}",
+                description=f"Namespace {cat}.{ns} exists",
+                **_check_namespace_exists_impl(spark, ns, cat),
+            ),
+        )
+    )
+
+    # Define required columns per entity
+    required_cols = {
+        "skills": [
+            "concept_uri",
+            "concept_uri_uuid",
+            "preferred_label",
+            "alt_labels",
+            "hidden_labels",
+            "alt_labels_count",
+            "hidden_labels_count",
+            "dataset",
+            "version",
+            "lang",
+            "run_id",
+        ],
+        "occupations": [
+            "concept_uri",
+            "concept_uri_uuid",
+            "preferred_label",
+            "alt_labels",
+            "hidden_labels",
+            "alt_labels_count",
+            "hidden_labels_count",
+            "dataset",
+            "version",
+            "lang",
+            "run_id",
+        ],
+        "relations": [
+            "occupation_uri",
+            "skill_uri",
+            "relation_type",
+            "occupation_label",
+            "skill_label",
+            "dataset",
+            "version",
+            "lang",
+            "run_id",
+        ],
+    }
+
+    # Per-entity checks
+    for entity_name in entity_names:
+        table_fqn = layout.iceberg_table_fqn(
+            layer="silver",
+            dataset="esco",
+            entity=entity_name,
+            raw=False,
+        )
+        table_short = table_fqn.split(".")[-1]
+
+        # Table exists
+        checks.append(
+            NamedCheck(
+                name=f"silver.table.exists.{table_short}",
+                description=f"Table {table_short} exists",
+                fn=lambda t=table_fqn: check_table_exists(spark, t),  # type: ignore[misc]
+            )
+        )
+
+        # Table non-empty for partition
+        checks.append(
+            NamedCheck(
+                name=f"silver.table.non_empty.{table_short}",
+                description=f"Table {table_short} has rows for partition",
+                fn=lambda t=table_fqn, v=version, lg=lang: (  # type: ignore[misc]
+                    check_silver_table_partition_non_empty(spark, t, v, lg)
+                ),
+            )
+        )
+
+        # Schema contains required columns
+        cols = required_cols.get(entity_name, [])
+        checks.append(
+            NamedCheck(
+                name=f"silver.schema.contains.{table_short}",
+                description=f"Table {table_short} has required columns",
+                fn=lambda t=table_fqn, c=cols: check_table_schema_contains(spark, t, c),  # type: ignore[misc]
+            )
+        )
+
+        # Uniqueness checks
+        if entity_name in ["skills", "occupations"]:
+            checks.append(
+                NamedCheck(
+                    name=f"silver.uniqueness.{table_short}",
+                    description=f"Table {table_short} has unique keys",
+                    fn=lambda t=table_fqn, v=version, lg=lang: (  # type: ignore[misc]
+                        check_silver_uniqueness_skills(spark, t, v, lg)
+                    ),
+                )
+            )
+        elif entity_name == "relations":
+            checks.append(
+                NamedCheck(
+                    name=f"silver.uniqueness.{table_short}",
+                    description=f"Table {table_short} has unique edge keys",
+                    fn=lambda t=table_fqn, v=version, lg=lang: (  # type: ignore[misc]
+                        check_silver_uniqueness_relations(spark, t, v, lg)
+                    ),
+                )
+            )
+
+    # Referential integrity checks (only if relations is included)
+    if "relations" in entity_names:
+        checks.append(
+            NamedCheck(
+                name="silver.fk.coverage",
+                description="Referential integrity coverage",
+                fn=lambda: _run_fk_checks(spark, config, version, lang),  # type: ignore[misc]
+            )
+        )
+
+    return checks
+
+
+def _check_namespace_exists_impl(
+    spark: SparkSession,
+    namespace: str,
+    catalog: str,
+) -> dict:
+    """Helper to check namespace existence and return kwargs for create_check."""
+    try:
+        namespaces = spark.sql(f"SHOW NAMESPACES IN {catalog}").collect()
+        namespace_names = [row[0] for row in namespaces]
+
+        if namespace in namespace_names:
+            return {"passed": True}
+        return {"passed": False, "detail": "Namespace not found"}
+    except Exception as exc:
+        return {"passed": False, "detail": str(exc)[:200]}
+
+
+def _run_fk_checks(
+    spark: SparkSession,
+    config: PlatformSettings,
+    version: str,
+    lang: str,
+) -> CheckResult:
+    """Run FK coverage checks and return combined result."""
+    fk_results = check_silver_referential_integrity(spark, config, version, lang)
+
+    # Combine results
+    all_passed = all(r.status.name == "PASS" for r in fk_results)
+    details = [f"{r.name}: {r.detail}" for r in fk_results]
+
+    return create_check(
+        name="silver.fk.coverage",
+        description="Referential integrity coverage",
+        passed=all_passed,
+        detail=" | ".join(details),
+    )
