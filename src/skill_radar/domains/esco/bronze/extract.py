@@ -131,7 +131,7 @@ def _read_csv_spark(
     return (
         spark.read.option("header", "true")
         .option("inferSchema", "false")
-        .option("multiLine", "false")
+        .option("multiLine", "true")
         .option("quote", '"')
         .option("escape", '"')
         .csv(csv_s3a_path)

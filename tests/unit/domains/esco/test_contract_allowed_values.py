@@ -45,6 +45,7 @@ class TestRequiredColumns:
         """No error when all required columns are present."""
         ent = next(e for e in contract.entities if e.name == "skills")
         actual = [
+            "conceptUri",
             "preferredLabel",
             "altLabels",
             "hiddenLabels",
@@ -64,7 +65,13 @@ class TestRequiredColumns:
 
     def test_occupations_all_present(self, contract) -> None:
         ent = next(e for e in contract.entities if e.name == "occupations")
-        actual = ["preferredLabel", "altLabels", "hiddenLabels", "description"]
+        actual = [
+            "conceptUri",
+            "preferredLabel",
+            "altLabels",
+            "hiddenLabels",
+            "description",
+        ]
         validate_required_columns(actual, ent)
 
     def test_occupations_missing_raises(self, contract) -> None:
@@ -75,7 +82,14 @@ class TestRequiredColumns:
 
     def test_relations_all_present(self, contract) -> None:
         ent = next(e for e in contract.entities if e.name == "relations")
-        actual = ["occupationLabel", "relationType", "skillType", "skillLabel"]
+        actual = [
+            "occupationUri",
+            "occupationLabel",
+            "relationType",
+            "skillType",
+            "skillLabel",
+            "skillUri",
+        ]
         validate_required_columns(actual, ent)
 
     def test_relations_missing_raises(self, contract) -> None:

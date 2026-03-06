@@ -59,6 +59,7 @@ class ExitCode(IntEnum):
     INFRA_FAILURE = 10
     LANDING_FAILURE = 20
     BRONZE_FAILURE = 30
+    SILVER_FAILURE = 40
     UNEXPECTED = 50
 
 

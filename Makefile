@@ -361,3 +361,27 @@ run-esco-bronze: ## Full ESCO bronze pipeline: upload → extract → validate (
 	$(SILENT)$(MAKE) bronze-esco VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA= VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) validate-esco-bronze VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
 	$(SILENT)bash -lc '$(call UI_OK,ESCO bronze pipeline complete.)'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ESCO Silver Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage:
+#   1. Ensure bronze tables are populated (make run-esco-bronze VERSION=v1.2.1 ESCO_LANG=fr)
+#   2. make silver-esco VERSION=v1.2.1 ESCO_LANG=fr
+#   3. make validate-esco-silver VERSION=v1.2.1 ESCO_LANG=fr
+# ─────────────────────────────────────────────────────────────────────────────
+
+.PHONY: silver-esco validate-esco-silver run-esco-silver
+
+silver-esco: ## Run ESCO silver formatting (Spark): VERSION=... ESCO_LANG=... ENTITIES=...
+	$(call RUN_STEP,Run ESCO silver formatting (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar esco silver --version $(VERSION) --lang $(ESCO_LANG) $(_ENTITIES_FLAG) $(EXTRA)")
+
+validate-esco-silver: ## Validate ESCO silver tables (VERSION=... ESCO_LANG=... ENTITIES=...) [Spark]
+	$(call RUN_STEP,Validate ESCO silver (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar validate esco-silver --version $(VERSION) --lang $(ESCO_LANG) $(_ENTITIES_FLAG) $(EXTRA)")
+
+run-esco-silver: ## Full ESCO silver pipeline: format → validate (VERSION=... ESCO_LANG=...)
+	$(SILENT)$(MAKE) silver-esco VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) validate-esco-silver VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
+	$(SILENT)bash -lc '$(call UI_OK,ESCO silver pipeline complete.)'
