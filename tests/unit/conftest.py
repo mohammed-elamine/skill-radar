@@ -80,6 +80,7 @@ def valid_esco_zip(fixtures_dir: Path) -> Path:
             "skills_fr.csv",
             _make_csv_bytes(
                 [
+                    "conceptUri",
                     "preferredLabel",
                     "altLabels",
                     "hiddenLabels",
@@ -91,11 +92,28 @@ def valid_esco_zip(fixtures_dir: Path) -> Path:
         )
         zf.writestr(
             "occupations_fr.csv",
-            _make_csv_bytes(["preferredLabel", "altLabels", "hiddenLabels", "description"]),
+            _make_csv_bytes(
+                [
+                    "conceptUri",
+                    "preferredLabel",
+                    "altLabels",
+                    "hiddenLabels",
+                    "description",
+                ]
+            ),
         )
         zf.writestr(
             "occupationSkillRelations_fr.csv",
-            _make_csv_bytes(["occupationLabel", "relationType", "skillType", "skillLabel"]),
+            _make_csv_bytes(
+                [
+                    "occupationUri",
+                    "occupationLabel",
+                    "relationType",
+                    "skillType",
+                    "skillLabel",
+                    "skillUri",
+                ]
+            ),
         )
     return zip_path
 

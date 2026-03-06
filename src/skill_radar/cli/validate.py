@@ -479,3 +479,94 @@ def validate_bronze_group(
         upload=upload,
         quiet=quiet,
     )
+
+
+# ---------------------------------------------------------------------------
+# ESCO silver validation
+# ---------------------------------------------------------------------------
+
+
+@validate_group.command("esco-silver")
+@click.option("--version", required=True, help="Artifact version (e.g. v1.2.1)")
+@click.option("--lang", required=True, help="Language code (e.g. fr)")
+@click.option("--entities", default=None, help="Comma-separated entities (default: all)")
+@click.option("--upload", is_flag=True, default=False, help="Upload report to S3 logs bucket")
+@click.option("--quiet", is_flag=True, default=False, help="Suppress console output")
+def validate_esco_silver(
+    version: str,
+    lang: str,
+    entities: str | None,
+    upload: bool,
+    quiet: bool,
+) -> None:
+    """Validate ESCO silver tables (requires Spark/Iceberg).
+
+    Validates:
+    - Silver namespace exists
+    - Silver tables exist and have rows for the partition
+    - Required columns present
+    - Uniqueness constraints (no duplicate keys)
+    - Referential integrity (relations → occupations/skills)
+
+    Run inside Spark container or with pyspark installed.
+    """
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        click.echo(
+            "Error: PySpark is not installed in this environment.\n"
+            "Run this validation inside the Spark container:\n\n"
+            "  docker compose exec -T spark bash -lc \\\n"
+            f'    "uv run skill-radar validate esco-silver --version {version} --lang {lang}"\n'
+        )
+        sys.exit(ExitCode.SILVER_FAILURE)
+
+    ctx = init_logging("validate_esco_silver", enable_file=True)
+    set_context(dataset="esco", version=version, lang=lang)
+    config = load_platform_config()
+
+    spark = (
+        SparkSession.builder.appName(f"validate_esco_silver_{version}_{lang}")
+        # mitigate JVM crashes in scans
+        .config("spark.sql.codegen.wholeStage", "false")
+        .config("spark.sql.parquet.enableVectorizedReader", "false")
+        .config("spark.sql.adaptive.enabled", "false")
+        .getOrCreate()
+    )
+
+    spark_app_id: str | None = None
+    try:
+        try:
+            spark_app_id = spark.sparkContext.applicationId
+            set_context(spark_app_id=spark_app_id)
+        except Exception:
+            spark_app_id = None
+
+        from skill_radar.platform.validate.checks.esco import get_silver_checks
+
+        entity_list = entities.split(",") if entities else None
+        checks = get_silver_checks(spark, config, version, lang, entities=entity_list)
+
+        report = run_checks(
+            checks,
+            validator_name="esco_silver",
+            run_id=ctx.run_id,
+            quiet=quiet,
+        )
+
+        # Store spark app id if available
+        report.artifacts["spark_app_id"] = spark_app_id or "unavailable"
+        report.artifacts["version"] = version
+        report.artifacts["lang"] = lang
+
+        local_path, _s3_key = finalize_report(report, config=config, upload_s3=upload)
+
+        if not quiet:
+            print_footer(report, str(local_path))
+
+        finalize_logging()
+        sys.exit(ExitCode.OK if report.passed else ExitCode.SILVER_FAILURE)
+
+    finally:
+        with contextlib.suppress(Exception):
+            spark.stop()

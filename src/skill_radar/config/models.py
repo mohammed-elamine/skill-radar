@@ -83,6 +83,24 @@ class LoggingConfig(BaseModel):
     logs_bucket: str = "skillradar-logs"
 
 
+class EscoSilverValidationConfig(BaseModel):
+    """ESCO Silver validation configuration."""
+
+    min_relation_fk_coverage: float = 0.99
+
+
+class EscoValidationConfig(BaseModel):
+    """ESCO dataset validation configuration."""
+
+    silver: EscoSilverValidationConfig = Field(default_factory=EscoSilverValidationConfig)
+
+
+class ValidationConfig(BaseModel):
+    """Validation configuration."""
+
+    esco: EscoValidationConfig = Field(default_factory=EscoValidationConfig)
+
+
 class PlatformConfig(BaseModel):
     """Top-level platform section."""
 
@@ -101,3 +119,4 @@ class PlatformSettings(BaseModel):
     lake: LakeConfig = Field(default_factory=LakeConfig)
     manifest: ManifestConfig = Field(default_factory=ManifestConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    validation: ValidationConfig = Field(default_factory=ValidationConfig)

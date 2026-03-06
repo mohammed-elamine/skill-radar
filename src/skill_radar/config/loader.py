@@ -21,6 +21,12 @@ _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
     "LOG_DIR": ("logging", "log_dir"),
     "LOG_FORMAT": ("logging", "console_format"),
     "SKILLRADAR_S3_LOGS_BUCKET": ("logging", "logs_bucket"),
+    "SKILLRADAR_VALIDATION_ESCO_SILVER_MIN_FK_COVERAGE": (
+        "validation",
+        "esco",
+        "silver",
+        "min_relation_fk_coverage",
+    ),
 }
 
 

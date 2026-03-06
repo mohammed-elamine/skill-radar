@@ -66,6 +66,26 @@ class TestLakeLayout:
         fqn = self.layout.iceberg_table_fqn("bronze", "esco", "skills", catalog="custom")
         assert fqn == "custom.sr_bronze.esco_skills_raw"
 
+    def test_iceberg_table_fqn_silver_raw_false(self):
+        """Silver tables do not have _raw suffix."""
+        fqn = self.layout.iceberg_table_fqn("silver", "esco", "skills", raw=False)
+        assert fqn == "sr.sr_silver.esco_skills"
+
+    def test_iceberg_table_fqn_silver_occupations(self):
+        fqn = self.layout.iceberg_table_fqn("silver", "esco", "occupations", raw=False)
+        assert fqn == "sr.sr_silver.esco_occupations"
+
+    def test_iceberg_table_fqn_silver_relations(self):
+        fqn = self.layout.iceberg_table_fqn("silver", "esco", "relations", raw=False)
+        assert fqn == "sr.sr_silver.esco_relations"
+
+    def test_iceberg_table_fqn_bronze_raw_true_default(self):
+        """Bronze tables have _raw suffix by default."""
+        fqn_default = self.layout.iceberg_table_fqn("bronze", "esco", "skills")
+        fqn_explicit = self.layout.iceberg_table_fqn("bronze", "esco", "skills", raw=True)
+        assert fqn_default == fqn_explicit
+        assert fqn_default == "sr.sr_bronze.esco_skills_raw"
+
     def test_iceberg_namespace(self):
         ns = self.layout.iceberg_namespace("bronze")
         assert ns == "sr.sr_bronze"

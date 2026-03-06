@@ -25,11 +25,12 @@ def build_bronze_valid_zip(lang: str = "fr") -> bytes:
     """Build a small valid ESCO ZIP with data rows for Bronze tests."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        # skills
+        # skills — must include conceptUri per contract.yaml
         zf.writestr(
             f"skills_{lang}.csv",
             _csv_bytes(
                 [
+                    "conceptUri",
                     "preferredLabel",
                     "altLabels",
                     "hiddenLabels",
@@ -39,6 +40,7 @@ def build_bronze_valid_zip(lang: str = "fr") -> bytes:
                 ],
                 [
                     [
+                        "http://data.europa.eu/esco/skill/python-1",
                         "Programmation Python",
                         "Python\nPython3\nPy",
                         "langage serpent",
@@ -47,6 +49,7 @@ def build_bronze_valid_zip(lang: str = "fr") -> bytes:
                         "cross-sector",
                     ],
                     [
+                        "http://data.europa.eu/esco/skill/data-analysis-2",
                         "Analyse de données",
                         "Data analysis\nAnalyse données",
                         "",
@@ -55,6 +58,7 @@ def build_bronze_valid_zip(lang: str = "fr") -> bytes:
                         "sector-specific",
                     ],
                     [
+                        "http://data.europa.eu/esco/skill/project-mgmt-3",
                         "Gestion de projet",
                         "Project management",
                         "PM\r\nchef de projet",
@@ -66,19 +70,21 @@ def build_bronze_valid_zip(lang: str = "fr") -> bytes:
             ).decode("utf-8"),
         )
 
-        # occupations
+        # occupations — must include conceptUri per contract.yaml
         zf.writestr(
             f"occupations_{lang}.csv",
             _csv_bytes(
-                ["preferredLabel", "altLabels", "hiddenLabels", "description"],
+                ["conceptUri", "preferredLabel", "altLabels", "hiddenLabels", "description"],
                 [
                     [
+                        "http://data.europa.eu/esco/occupation/dev-1",
                         "Développeur logiciel",
                         "Software developer\nDéveloppeur",
                         "codeur",
                         "Développe des applications logicielles",
                     ],
                     [
+                        "http://data.europa.eu/esco/occupation/ds-2",
                         "Data scientist",
                         "Scientifique des données",
                         "",
@@ -88,35 +94,50 @@ def build_bronze_valid_zip(lang: str = "fr") -> bytes:
             ).decode("utf-8"),
         )
 
-        # relations
+        # relations — must include occupationUri and skillUri per contract.yaml
         zf.writestr(
             f"occupationSkillRelations_{lang}.csv",
             _csv_bytes(
-                ["occupationLabel", "relationType", "skillType", "skillLabel"],
+                [
+                    "occupationUri",
+                    "occupationLabel",
+                    "relationType",
+                    "skillType",
+                    "skillLabel",
+                    "skillUri",
+                ],
                 [
                     [
+                        "http://data.europa.eu/esco/occupation/dev-1",
                         "Développeur logiciel",
                         "essential",
                         "skill/competence",
                         "Programmation Python",
+                        "http://data.europa.eu/esco/skill/python-1",
                     ],
                     [
+                        "http://data.europa.eu/esco/occupation/dev-1",
                         "Développeur logiciel",
                         "optional",
                         "knowledge",
                         "Analyse de données",
+                        "http://data.europa.eu/esco/skill/data-analysis-2",
                     ],
                     [
+                        "http://data.europa.eu/esco/occupation/ds-2",
                         "Data scientist",
                         "essential",
                         "knowledge",
                         "Analyse de données",
+                        "http://data.europa.eu/esco/skill/data-analysis-2",
                     ],
                     [
+                        "http://data.europa.eu/esco/occupation/ds-2",
                         "Data scientist",
                         "optional",
                         "skill/competence",
                         "Gestion de projet",
+                        "http://data.europa.eu/esco/skill/project-mgmt-3",
                     ],
                 ],
             ).decode("utf-8"),
