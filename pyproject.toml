@@ -17,6 +17,7 @@ dependencies = [
   "boto3>=1.28.0",
   "click>=8.1.0",
   "pyspark==3.5.7",
+  "requests>=2.31.0",
 ]
 
 [project.scripts]
@@ -40,6 +41,7 @@ dev = [
   "pytest-cov>=5.0",
   "ruff>=0.15.2",
   "types-pyyaml>=6.0.12.20250915",
+  "types-requests>=2.31.0",
 ]
 
 [tool.ruff]

@@ -67,6 +67,12 @@ data/*
 *.sqlite
 
 # ===============================
+# Test fixtures (must be tracked for CI)
+# ===============================
+!tests/fixtures/**
+tests/fixtures/**/__pycache__/
+
+# ===============================
 # Jupyter
 # ===============================
 .ipynb_checkpoints/

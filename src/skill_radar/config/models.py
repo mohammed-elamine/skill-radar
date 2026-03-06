@@ -83,6 +83,23 @@ class LoggingConfig(BaseModel):
     logs_bucket: str = "skillradar-logs"
 
 
+class AdzunaConfig(BaseModel):
+    """Adzuna API and extraction configuration.
+
+    Credentials (``ADZUNA_APP_ID``, ``ADZUNA_APP_KEY``) are resolved
+    from environment variables at runtime — never stored here.
+    """
+
+    base_url: str = "https://api.adzuna.com/v1/api"
+    default_country: str = "fr"
+    results_per_page: int = 50
+    max_pages_per_run: int = 20
+    request_timeout_seconds: int = 30
+    max_retries: int = 3
+    backoff_seconds: int = 2
+    default_preset: str = "default_fr"
+
+
 class EscoSilverValidationConfig(BaseModel):
     """ESCO Silver validation configuration."""
 
@@ -119,4 +136,5 @@ class PlatformSettings(BaseModel):
     lake: LakeConfig = Field(default_factory=LakeConfig)
     manifest: ManifestConfig = Field(default_factory=ManifestConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    adzuna: AdzunaConfig = Field(default_factory=AdzunaConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)

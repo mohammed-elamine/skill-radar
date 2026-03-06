@@ -85,6 +85,10 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-eu-west-3}
 
+      # Adzuna API credentials (read from .env by Docker Compose interpolation)
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+
       JAVA_HOME: /usr/lib/jvm/temurin-17-jdk
       PATH: /usr/lib/jvm/temurin-17-jdk/bin:/opt/skillradar/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 

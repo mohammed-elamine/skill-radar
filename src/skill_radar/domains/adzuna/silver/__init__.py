@@ -1,0 +1,1 @@
+"""Adzuna Silver sub-package."""

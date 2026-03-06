@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import click
 
+from .adzuna import adzuna_group
 from .esco import esco_group
 from .infra import infra_group
 from .run import run_group
@@ -24,6 +25,7 @@ def main() -> None:
     """Skill Radar — Data Platform CLI."""
 
 
+main.add_command(adzuna_group, name="adzuna")
 main.add_command(esco_group, name="esco")
 main.add_command(infra_group, name="infra")
 main.add_command(run_group, name="run")

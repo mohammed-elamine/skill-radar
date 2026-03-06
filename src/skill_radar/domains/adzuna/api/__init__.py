@@ -1,0 +1,1 @@
+"""Adzuna API sub-package."""

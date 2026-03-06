@@ -1,0 +1,57 @@
+{
+  "count": 2,
+  "results": [
+    {
+      "id": "4009999901",
+      "adref": "sparse001ref",
+      "title": "Poste sans détails",
+      "description": "Description minimale.",
+      "redirect_url": "https://www.adzuna.fr/details/4009999901",
+      "created": "2025-01-10T08:00:00Z",
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": null,
+      "latitude": null,
+      "longitude": null,
+      "location": {
+        "display_name": "France",
+        "area": ["France"]
+      },
+      "category": {
+        "tag": "general-jobs",
+        "label": "General Jobs"
+      },
+      "company": {
+        "display_name": "Entreprise Anonyme"
+      },
+      "contract_time": null,
+      "contract_type": null
+    },
+    {
+      "id": "4009999902",
+      "adref": "sparse002ref",
+      "title": "Offre minimale",
+      "description": "Pas de détails supplémentaires.",
+      "redirect_url": "https://www.adzuna.fr/details/4009999902",
+      "created": "2025-01-10T09:00:00Z",
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": null,
+      "latitude": null,
+      "longitude": null,
+      "location": {
+        "display_name": "France",
+        "area": ["France"]
+      },
+      "category": {
+        "tag": "general-jobs",
+        "label": "General Jobs"
+      },
+      "company": {
+        "display_name": "Société Inconnue"
+      },
+      "contract_time": null,
+      "contract_type": null
+    }
+  ]
+}

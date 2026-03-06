@@ -1,0 +1,83 @@
+{
+  "count": 3,
+  "results": [
+    {
+      "id": "4001234567",
+      "adref": "abc123def456",
+      "title": "Développeur Python Senior",
+      "description": "Nous recherchons un développeur Python expérimenté pour rejoindre notre équipe data engineering.",
+      "redirect_url": "https://www.adzuna.fr/details/4001234567",
+      "created": "2025-01-15T10:30:00Z",
+      "salary_min": 45000.0,
+      "salary_max": 65000.0,
+      "salary_is_predicted": "0",
+      "latitude": 48.8566,
+      "longitude": 2.3522,
+      "location": {
+        "display_name": "Paris, Île-de-France",
+        "area": ["France", "Île-de-France", "Paris"]
+      },
+      "category": {
+        "tag": "it-jobs",
+        "label": "IT Jobs"
+      },
+      "company": {
+        "display_name": "DataTech Solutions"
+      },
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    },
+    {
+      "id": "4001234568",
+      "adref": "def456ghi789",
+      "title": "Data Engineer – Spark & Cloud",
+      "description": "Poste de Data Engineer pour architecture lakehouse moderne.",
+      "redirect_url": "https://www.adzuna.fr/details/4001234568",
+      "created": "2025-01-14T14:00:00Z",
+      "salary_min": 50000.0,
+      "salary_max": 70000.0,
+      "salary_is_predicted": "1",
+      "latitude": 48.8570,
+      "longitude": 2.3510,
+      "location": {
+        "display_name": "Paris, Île-de-France",
+        "area": ["France", "Île-de-France", "Paris"]
+      },
+      "category": {
+        "tag": "it-jobs",
+        "label": "IT Jobs"
+      },
+      "company": {
+        "display_name": "CloudScale SAS"
+      },
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    },
+    {
+      "id": "4001234569",
+      "adref": "ghi789jkl012",
+      "title": "Analyste de données Junior",
+      "description": "Opportunité pour analyste de données en début de carrière.",
+      "redirect_url": "https://www.adzuna.fr/details/4001234569",
+      "created": "2025-01-13T09:15:00Z",
+      "salary_min": 32000.0,
+      "salary_max": 40000.0,
+      "salary_is_predicted": "0",
+      "latitude": 45.7640,
+      "longitude": 4.8357,
+      "location": {
+        "display_name": "Lyon, Auvergne-Rhône-Alpes",
+        "area": ["France", "Auvergne-Rhône-Alpes", "Lyon"]
+      },
+      "category": {
+        "tag": "it-jobs",
+        "label": "IT Jobs"
+      },
+      "company": {
+        "display_name": "AnalyticsFirst"
+      },
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    }
+  ]
+}
