@@ -1,0 +1,7 @@
+# docker/airflow/requirements.txt
+# ──────────────────────────────────────────────────────────────
+# Extra Python packages installed on top of the base Airflow
+# image.  Pinned for reproducible builds.
+# ──────────────────────────────────────────────────────────────
+apache-airflow-providers-docker==3.12.0
+boto3>=1.28.0
