@@ -441,3 +441,48 @@ run-adzuna: ## Full Adzuna pipeline: bronze → validate → silver → validate
 	$(SILENT)$(MAKE) adzuna-silver ADZUNA_COUNTRY=$(ADZUNA_COUNTRY) ADZUNA_INGESTION_DATE=$(ADZUNA_INGESTION_DATE) EXTRA= VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) validate-adzuna-silver EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
 	$(SILENT)bash -lc '$(call UI_OK,Adzuna pipeline complete.)'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gold Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Requires:
+#   - ESCO Silver tables populated (make run-esco-silver VERSION=... ESCO_LANG=...)
+#   - Adzuna Silver table populated (make run-adzuna ADZUNA_COUNTRY=...)
+#
+# Usage:
+#   make gold-matching  GOLD_COUNTRY=fr GOLD_INGESTION_DATE=2025-01-15 GOLD_ESCO_VERSION=v1.2.1 GOLD_ESCO_LANG=fr
+#   make gold-analytics GOLD_COUNTRY=fr GOLD_INGESTION_DATE=2025-01-15 GOLD_ESCO_VERSION=v1.2.1 GOLD_ESCO_LANG=fr
+#   make validate-gold  GOLD_COUNTRY=fr GOLD_INGESTION_DATE=2025-01-15 GOLD_ESCO_VERSION=v1.2.1 GOLD_ESCO_LANG=fr
+#   make run-gold        # matching → analytics → validate
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dynamic overrides for Gold pipeline
+GOLD_COUNTRY          ?= fr
+GOLD_INGESTION_DATE   ?=
+GOLD_ESCO_VERSION     ?= v1.2.1
+GOLD_ESCO_LANG        ?= fr
+GOLD_JOB_LIMIT        ?=
+
+# Helper: build optional Gold CLI flags
+_GOLD_DATE_FLAG      = $(if $(GOLD_INGESTION_DATE),--ingestion-date $(GOLD_INGESTION_DATE),)
+_GOLD_LIMIT_FLAG     = $(if $(GOLD_JOB_LIMIT),--job-limit $(GOLD_JOB_LIMIT),)
+
+.PHONY: gold-matching gold-analytics validate-gold run-gold
+
+gold-matching: ## Run Gold matching (Spark): GOLD_COUNTRY=... GOLD_INGESTION_DATE=... GOLD_ESCO_VERSION=... GOLD_ESCO_LANG=...
+	$(call RUN_STEP,Run Gold matching (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar gold matching $(_GOLD_DATE_FLAG) --country $(GOLD_COUNTRY) --esco-version $(GOLD_ESCO_VERSION) --esco-lang $(GOLD_ESCO_LANG) $(_GOLD_LIMIT_FLAG) $(EXTRA)")
+
+gold-analytics: ## Run Gold analytics (Spark): GOLD_COUNTRY=... GOLD_INGESTION_DATE=... GOLD_ESCO_VERSION=... GOLD_ESCO_LANG=...
+	$(call RUN_STEP,Run Gold analytics (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar gold analytics $(_GOLD_DATE_FLAG) --country $(GOLD_COUNTRY) --esco-version $(GOLD_ESCO_VERSION) --esco-lang $(GOLD_ESCO_LANG) $(EXTRA)")
+
+validate-gold: ## Validate Gold tables (Spark): GOLD_COUNTRY=... GOLD_INGESTION_DATE=... GOLD_ESCO_VERSION=... GOLD_ESCO_LANG=...
+	$(call RUN_STEP,Validate Gold tables (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar validate gold $(_GOLD_DATE_FLAG) --country $(GOLD_COUNTRY) --esco-version $(GOLD_ESCO_VERSION) --esco-lang $(GOLD_ESCO_LANG) $(EXTRA)")
+
+run-gold: ## Full Gold pipeline: matching → analytics → validate
+	$(SILENT)$(MAKE) gold-matching GOLD_COUNTRY=$(GOLD_COUNTRY) GOLD_INGESTION_DATE=$(GOLD_INGESTION_DATE) GOLD_ESCO_VERSION=$(GOLD_ESCO_VERSION) GOLD_ESCO_LANG=$(GOLD_ESCO_LANG) GOLD_JOB_LIMIT=$(GOLD_JOB_LIMIT) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) gold-analytics GOLD_COUNTRY=$(GOLD_COUNTRY) GOLD_INGESTION_DATE=$(GOLD_INGESTION_DATE) GOLD_ESCO_VERSION=$(GOLD_ESCO_VERSION) GOLD_ESCO_LANG=$(GOLD_ESCO_LANG) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) validate-gold GOLD_COUNTRY=$(GOLD_COUNTRY) GOLD_INGESTION_DATE=$(GOLD_INGESTION_DATE) GOLD_ESCO_VERSION=$(GOLD_ESCO_VERSION) GOLD_ESCO_LANG=$(GOLD_ESCO_LANG) EXTRA=$(EXTRA) VERBOSE=$(VERBOSE)
+	$(SILENT)bash -lc '$(call UI_OK,Gold pipeline complete.)'

@@ -3,6 +3,7 @@
 Provides convenience commands that combine provisioning and validation:
 - skill-radar run infra       (infra apply + validate infra)
 - skill-radar run esco-bronze (landing + bronze + validation)
+- skill-radar run gold        (matching + analytics + validation)
 """
 
 from __future__ import annotations
@@ -351,6 +352,222 @@ def run_esco_bronze(
 
         if failed:
             sys.exit(ExitCode.BRONZE_FAILURE)
+        else:
+            sys.exit(ExitCode.OK)
+
+    finally:
+        if spark:
+            spark.stop()
+
+
+# ---------------------------------------------------------------------------
+# Run Gold pipeline (matching + analytics + validation)
+# ---------------------------------------------------------------------------
+
+
+@run_group.command("gold")
+@click.option("--ingestion-date", "ingestion_date", required=True, help="Adzuna date YYYY-MM-DD.")
+@click.option("--country", required=True, help="Country code (e.g. fr).")
+@click.option("--esco-version", "esco_version", required=True, help="ESCO version (e.g. v1.2.1).")
+@click.option("--esco-lang", "esco_lang", required=True, help="ESCO language (e.g. fr).")
+@click.option("--job-limit", "job_limit", default=None, type=int, help="Debug: limit Adzuna jobs.")
+@click.option("--upload", is_flag=True, default=False, help="Upload reports to S3 logs bucket")
+@click.option("--quiet", is_flag=True, default=False, help="Suppress console output")
+def run_gold(
+    ingestion_date: str,
+    country: str,
+    esco_version: str,
+    esco_lang: str,
+    job_limit: int | None,
+    upload: bool,
+    quiet: bool,
+) -> None:
+    """Run full Gold pipeline: matching → analytics → validation.
+
+    Orchestrates:
+    1. Gold matching (job-skill + job-occupation)
+    2. Gold analytics (KPIs + occupation-skill graph)
+    3. Gold validation (quality checks on outputs)
+    """
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        click.echo("Error: PySpark is not installed. Gold requires Spark/Iceberg.")
+        sys.exit(ExitCode.UNEXPECTED)
+
+    ctx = init_logging("run_gold", enable_file=True)
+    set_context(dataset="gold")
+    config = load_platform_config()
+
+    all_results: list[CheckResult] = []
+    artifacts: dict[str, str] = {
+        "ingestion_date": ingestion_date,
+        "country": country,
+        "esco_version": esco_version,
+        "esco_lang": esco_lang,
+    }
+
+    if not quiet:
+        print_header("run_gold", ctx.run_id, config.platform.environment)
+
+    spark = None
+    try:
+        spark = (
+            SparkSession.builder.appName("run_gold")
+            .config("spark.sql.codegen.wholeStage", "false")
+            .config("spark.sql.parquet.enableVectorizedReader", "false")
+            .config("spark.sql.adaptive.enabled", "false")
+            .getOrCreate()
+        )
+        artifacts["spark_app_id"] = spark.sparkContext.applicationId
+        set_context(spark_app_id=spark.sparkContext.applicationId)
+
+        from skill_radar.domains.gold.analytics.orchestrator import run_gold_analytics
+        from skill_radar.domains.gold.matching.orchestrator import run_gold_matching
+        from skill_radar.platform.validate.models import create_check
+
+        # Phase 1: Gold matching
+        if not quiet:
+            click.echo("\n  ── Phase 1: Gold Matching ──\n")
+
+        match_result = run_gold_matching(
+            spark,
+            ingestion_date=ingestion_date,
+            country=country,
+            esco_version=esco_version,
+            esco_lang=esco_lang,
+            job_limit=job_limit,
+            run_id=ctx.run_id,
+        )
+
+        match_check = create_check(
+            name="run.gold.matching",
+            description="Gold matching pipeline",
+            passed=match_result.success,
+            detail=(
+                f"skills={match_result.job_skill_matches_count} "
+                f"occs={match_result.job_occupation_matches_count}"
+                if match_result.success
+                else match_result.error
+            ),
+        )
+        all_results.append(match_check)
+        if not quiet:
+            print_check_result(match_check)
+
+        if not match_result.success:
+            report = ValidationReport(
+                validator_name="run_gold",
+                env=config.platform.environment,
+                run_id=ctx.run_id,
+                checks=all_results,
+                status=CheckStatus.FAIL,
+            )
+            report.artifacts.update(artifacts)
+            report.artifacts["phase_stopped"] = "matching"
+            local_path, _ = finalize_report(report, config=config, upload_s3=upload)
+            if not quiet:
+                click.echo("\n  ✗ Gold matching failed\n")
+                print_footer(report, str(local_path))
+            finalize_logging()
+            sys.exit(ExitCode.UNEXPECTED)
+
+        # Phase 2: Gold analytics
+        if not quiet:
+            click.echo("\n  ── Phase 2: Gold Analytics ──\n")
+
+        analytics_result = run_gold_analytics(
+            spark,
+            ingestion_date=ingestion_date,
+            country=country,
+            esco_version=esco_version,
+            esco_lang=esco_lang,
+            run_id=ctx.run_id,
+        )
+
+        analytics_check = create_check(
+            name="run.gold.analytics",
+            description="Gold analytics pipeline",
+            passed=analytics_result.success,
+            detail=(
+                f"demand={analytics_result.skill_demand_rows} "
+                f"salary={analytics_result.salary_by_skill_rows} "
+                f"graph={analytics_result.occupation_skill_graph_rows}"
+                if analytics_result.success
+                else analytics_result.error
+            ),
+        )
+        all_results.append(analytics_check)
+        if not quiet:
+            print_check_result(analytics_check)
+
+        if not analytics_result.success:
+            report = ValidationReport(
+                validator_name="run_gold",
+                env=config.platform.environment,
+                run_id=ctx.run_id,
+                checks=all_results,
+                status=CheckStatus.FAIL,
+            )
+            report.artifacts.update(artifacts)
+            report.artifacts["phase_stopped"] = "analytics"
+            local_path, _ = finalize_report(report, config=config, upload_s3=upload)
+            if not quiet:
+                click.echo("\n  ✗ Gold analytics failed\n")
+                print_footer(report, str(local_path))
+            finalize_logging()
+            sys.exit(ExitCode.UNEXPECTED)
+
+        # Phase 3: Gold validation
+        if not quiet:
+            click.echo("\n  ── Phase 3: Gold Validation ──\n")
+
+        from skill_radar.platform.validate.checks.gold import get_gold_checks
+
+        gold_checks = get_gold_checks(
+            spark,
+            config,
+            ingestion_date=ingestion_date,
+            country=country,
+            esco_version=esco_version,
+            esco_lang=esco_lang,
+        )
+
+        for named_check in gold_checks:
+            result = named_check.fn()
+            all_results.append(result)
+            if not quiet:
+                print_check_result(result)
+
+        # Build final report
+        failed = [r for r in all_results if r.status == CheckStatus.FAIL]
+        warned = [r for r in all_results if r.status == CheckStatus.WARN]
+
+        if failed:
+            status = CheckStatus.FAIL
+        elif warned:
+            status = CheckStatus.WARN
+        else:
+            status = CheckStatus.PASS
+
+        report = ValidationReport(
+            validator_name="run_gold",
+            env=config.platform.environment,
+            run_id=ctx.run_id,
+            checks=all_results,
+            status=status,
+        )
+        report.artifacts.update(artifacts)
+
+        local_path, _ = finalize_report(report, config=config, upload_s3=upload)
+
+        if not quiet:
+            print_footer(report, str(local_path))
+
+        finalize_logging()
+
+        if failed:
+            sys.exit(ExitCode.UNEXPECTED)
         else:
             sys.exit(ExitCode.OK)
 
