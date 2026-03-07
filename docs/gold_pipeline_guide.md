@@ -40,11 +40,11 @@ research queries.
 |---|---|
 | **Inputs** | Adzuna Silver jobs + ESCO Silver skills, occupations, relations |
 | **Outputs** | 5 Gold Iceberg tables in `sr.sr_gold` |
-| **Matching strategy** | Deterministic, dictionary-driven, no ML |
+| **Matching strategy** | Deterministic, candidate equi-join (n-gram), no ML |
 | **Write mode** | Partition overwrite → idempotent reruns |
 | **Validation** | 35+ automated checks across all 5 tables |
 | **CLI** | `skill-radar gold matching`, `gold analytics`, `gold pipeline`, `run gold`, `validate gold` |
-| **Tests** | 68 unit tests (5 files), 0 regressions |
+| **Tests** | 72 unit tests (5 files) + 35 integration tests (4 files), 0 regressions |
 
 The pipeline is split into two sequential stages:
 
@@ -126,14 +126,21 @@ All reads are partition-scoped to avoid full table scans:
                     │            Gold Matching Layer           │
                     │                                          │
                     │  ┌─────────────────────────────────────┐ │
-                    │  │     build_skill_label_dictionary()  │ │
-                    │  │  ESCO Silver → flat label dictionary│ │
+                    │  │     build_label_dimension()         │ │
+                    │  │  ESCO Silver → flat label dimension │ │
+                    │  │  + label_token_count                │ │
+                    │  └──────────────┬──────────────────────┘ │
+                    │                 │                        │
+                    │  ┌──────────────▼──────────────────────┐ │
+                    │  │     build_job_candidates()          │ │
+                    │  │  Bounded n-gram (1..N) from title + │ │
+                    │  │  description                        │ │
                     │  └──────────────┬──────────────────────┘ │
                     │                 │                        │
                     │  ┌──────────────▼──────────────────────┐ │
                     │  │     match_jobs_to_skills()          │ │
-                    │  │  broadcast cross-join + \\b regex   │ │
-                    │  │  → raw skill match rows             │ │
+                    │  │  candidate equi-join on normalized  │ │
+                    │  │  text → raw skill match rows        │ │
                     │  └──────────────┬──────────────────────┘ │
                     │                 │                        │
                     │  ┌──────────────▼──────────────────────┐ │
@@ -295,12 +302,17 @@ tables with stable schemas. Gold enforces quality through:
 
 ## 5. Matching Layer — Skill Matching
 
-**Module**: `domains/gold/matching/skill_matching.py`<br>
-**Method tag**: `exact_dictionary_v1`
+**Modules**: `domains/gold/matching/label_dimension.py`, `job_candidates.py`,
+`skill_matching.py`, `scoring.py`<br>
+**Method tag**: `candidate_equijoin_v2`
 
-### 5.1 Label Dictionary Construction
+### 5.1 Label Dimension Construction
 
-The first step explodes ESCO Silver skills into a flat label dictionary:
+The first step explodes ESCO Silver skills into a flat **label dimension**
+with one row per unique label variant. This is the reference side of the
+candidate-based matching architecture.
+
+**Module**: `label_dimension.py`
 
 ```
                     ┌──────────────────────────────┐
@@ -312,60 +324,81 @@ The first step explodes ESCO Silver skills into a flat label dictionary:
                     │  hidden_labels[]             │
                     └──────────────┬───────────────┘
                                    │
-                         explode_outer × 3 types
+                         explode_outer x 3 types
                                    │
                     ┌──────────────▼───────────────┐
-                    │   Flat Label Dictionary      │
+                    │   Label Dimension            │
                     │                              │
                     │  concept_uri                 │
                     │  label_value                 │
                     │  label_normalized            │
                     │  label_type (preferred|alt|  │
                     │              hidden)         │
+                    │  label_token_count           │
                     └──────────────────────────────┘
 ```
 
 Implementation details:
 
 1. **Preferred labels**: one row per skill (always present).
-2. **Alt labels**: `explode_outer(alt_labels)` → one row per alternative form.
-3. **Hidden labels**: `explode_outer(hidden_labels)` → one row per hidden form.
+2. **Alt labels**: `explode_outer(alt_labels)` — one row per alternative form.
+3. **Hidden labels**: `explode_outer(hidden_labels)` — one row per hidden form.
 4. **Normalization**: `lower(regexp_replace(trim(label), '\\s+', ' '))`.
 5. **Deduplication**: `dropDuplicates(["concept_uri", "label_normalized", "label_type"])`.
 6. **Null filtering**: discard rows where `label_normalized` is null or empty.
+7. **Token count**: `label_token_count = size(split(label_normalized, '\\s+'))` —
+   used by the candidate generator to cap n-gram size.
 
-### 5.2 Phrase-Safe Regex Matching
+The label dimension is broadcast-safe for typical ESCO sizes (~14 000
+skills, ~60 000 label variants).
 
-For each label in the dictionary, a **word-boundary-safe regex** pattern
-is generated:
+### 5.2 Job Candidate Phrase Generation
 
-```
-\b(?:machine learning|intelligence artificielle|python)\b
-```
+**Module**: `job_candidates.py`
 
-- Labels are escaped via `re.escape()` to handle special characters.
-- Labels are sorted by length descending so longer phrases match first
-  (avoiding false substring matches).
-- The `\b` anchors prevent partial-word hits.
-
-### 5.3 Broadcast Cross-Join Strategy
+For each job, bounded contiguous n-grams (1 to *N* tokens) are extracted
+from `title_normalized` and `description_normalized`. *N* is
+`min(CANDIDATE_MAX_NGRAM_SIZE, max_label_tokens(label_dim))`, defaulting
+to 6 — which covers >99% of ESCO skill labels.
 
 ```
-  Adzuna Silver jobs (partition-scoped)
+  Adzuna Silver jobs
+       │
+       ├── title_normalized ──▶ split → n-grams(1..N)
+       │                                  └─ text_source = "title"
+       └── description_normalized ──▶ split → n-grams(1..N)
+                                        └─ text_source = "description"
+       │
+       ▼
+  (job_id, candidate_phrase, text_source) — deduplicated
+```
+
+Implementation uses Spark-native array operations: `F.split`, `F.sequence`,
+`F.explode`, `F.slice`, `F.concat_ws` — no Python UDFs.
+
+Word-boundary semantics are inherent: each n-gram is a contiguous sequence
+of whitespace-delimited tokens, so `"python"` will never match `"cpython"`
+or `"nosql"` will never match `"sql"`.
+
+### 5.3 Candidate Equi-Join Strategy
+
+```
+  Job candidates (n-grams)
           │
-          │  crossJoin + broadcast
+          │  equi-join on candidate_phrase == label_normalized
           │
-  Label dictionary (broadcast-safe — thousands of rows)
+  Label dimension (broadcast)
           │
-          ├── title_normalized.rlike(label_pattern) → title matches
-          └── description_normalized.rlike(label_pattern) → description matches
+          ▼
+  Raw skill match rows (one per hit)
 ```
 
-- The label dictionary is broadcast-joined (`F.broadcast(labels)`)
-  because ESCO labels fit in driver memory (typically 10–30 K rows).
-- Two separate cross-joins execute: one for `title_normalized`, one for
-  `description_normalized`.
-- Results are unioned via `unionByName`.
+- The label dimension is broadcast-joined (`F.broadcast(labels)`)
+  because ESCO labels fit in driver memory (typically 10–60 K rows).
+- A single equi-join replaces the previous two broadcast cross-joins +
+  regex evaluation, leveraging Spark's hash-join optimizer.
+- The centralized scoring expression (`scoring.py`) assigns scores
+  from `SKILL_MATCH_SCORES` based on `(label_type, text_source)`.
 
 ### 5.4 Deterministic Scoring Matrix
 
@@ -521,20 +554,31 @@ single SparkSession:
 ```
   1. Load platform config + resolve run_id
   2. Create Gold namespace (CREATE NAMESPACE IF NOT EXISTS)
-  3. Read inputs:
+  3. Phase 1 — Read inputs:
      - ESCO Silver skills    (filtered by version + lang)
      - ESCO Silver occupations
      - ESCO Silver relations
      - Adzuna Silver jobs    (filtered by country + date, optional job_limit)
-  4. build_skill_label_dictionary()
-  5. match_jobs_to_skills() → deduplicate_skill_matches()
-  6. match_jobs_to_occupations_by_title()
-  7. match_jobs_to_occupations_by_relations() (using skill matches from 5)
-  8. combine_occupation_matches()
-  9. Add lineage columns (gold_run_id, gold_generated_at_utc, esco_version, esco_lang)
- 10. _write_gold_table() → gold_job_skill_matches
- 11. _write_gold_table() → gold_job_occupation_matches
+  4. Phase 2 — Build label dimension (build_label_dimension → persist)
+  5. Phase 3 — Build job candidates (build_job_candidates → persist)
+  6. Phase 4 — Skill matching:
+     - match_jobs_to_skills(jobs, label_dim, candidates) → equi-join
+     - deduplicate_skill_matches()
+  7. Phase 5 — Occupation matching:
+     - match_jobs_to_occupations_by_title()
+     - match_jobs_to_occupations_by_relations() (using skill matches from 6)
+     - combine_occupation_matches()
+  8. Phase 6 — Write Gold tables:
+     - Add lineage columns (gold_run_id, gold_generated_at_utc, esco_version, esco_lang)
+     - _write_gold_table() → gold_job_skill_matches
+     - _write_gold_table() → gold_job_occupation_matches
+  9. Cleanup — unpersist all cached DataFrames
 ```
+
+Each phase is timed via `time.monotonic()` with structured log output.
+Intermediate DataFrames (label dimension, job candidates, skill matches)
+are `persist(MEMORY_AND_DISK)` when reused across phases, then
+`unpersist()` in a `finally` block.
 
 ### Write Helper
 
@@ -696,7 +740,7 @@ All Gold tables share these properties:
 | `matched_label` | string | Label that triggered the match |
 | `matched_label_type` | string | `preferred` / `alt` / `hidden` |
 | `matched_text_source` | string | `title` / `description` |
-| `match_method` | string | `exact_dictionary_v1` |
+| `match_method` | string | `candidate_equijoin_v2` |
 | `match_score` | double | [0.5, 1.0] |
 | `title_hit` | boolean | Skill appeared in title |
 | `description_hit` | boolean | Skill appeared in description |
@@ -1029,14 +1073,26 @@ pipeline with real Spark execution.
 
 ### 13.2 Test Files
 
+**Unit tests** (`tests/unit/domains/gold/`):
+
 | File | Tests | Scope |
 |---|---|---|
-| `test_models.py` | 24 | Scoring config integrity, `compute_occupation_relation_score()` determinism/capping/monotonicity, result dataclass defaults/serialization |
-| `test_skill_matching.py` | 17 | `normalize_label()` edge cases, `build_match_regex_pattern()` word boundary safety, multi-label patterns, special character escaping |
+| `test_models.py` | 25 | Scoring config integrity, `compute_occupation_relation_score()` determinism/capping/monotonicity, `CANDIDATE_MAX_NGRAM_SIZE`, result dataclass defaults/serialization |
+| `test_skill_matching.py` | 17 | `normalize_label()` edge cases, `build_match_regex_pattern()` word boundary safety (legacy helpers retained for backward compat) |
 | `test_layout.py` | 9 | All Gold + ESCO Silver FQN helpers, uniqueness across tables, format validation |
-| `test_validation_checks.py` | 13 | Factory returns `NamedCheck` instances, check count ≥ 30, unique names, `gold.` prefix, required column lists, `ExitCode.GOLD_FAILURE == 45` |
+| `test_validation_checks.py` | 13 | Factory returns `NamedCheck` instances, check count >= 30, unique names, `gold.` prefix, required column lists, `ExitCode.GOLD_FAILURE == 45` |
 | `test_cli.py` | 5 | `gold_group` registered in main, subcommands exist, help output, `validate gold` registered, `run gold` registered |
-| **Total** | **68** | |
+| **Total** | **72** | |
+
+**Integration tests** (`tests/integration/domains/gold/`):
+
+| File | Tests | Scope |
+|---|---|---|
+| `test_label_dimension.py` | 11 | Label dimension construction, token counts, dedup, null/empty handling, `max_label_tokens()` |
+| `test_job_candidates.py` | 9 | N-gram generation, bounding, provenance, dedup within source, empty text, invalid args |
+| `test_scoring.py` | 5 | All 6 (label_type, text_source) combos scored correctly, unknown combo, preferred+title highest, Column object support |
+| `test_skill_matching_equijoin.py` | 10 | End-to-end equi-join matching, dedup, output schema, score ranges, no-substring-match guarantee |
+| **Total** | **35** | |
 
 ### 13.3 Key Testing Patterns
 
@@ -1046,13 +1102,17 @@ pipeline with real Spark execution.
 - **Boundary conditions**: `compute_occupation_relation_score()` is
   tested at 0, 1, 5, 10, 100 supporting skills to verify capping and
   monotonicity.
-- **Regex safety**: patterns with special characters (`c++`,
-  `node.js`, `(parentheses)`) are tested to verify `re.escape()`
-  handles them correctly.
+- **N-gram bounding**: candidate generation is tested to ensure no
+  candidate phrase exceeds `max_ngram_size` tokens.
+- **No-substring guarantee**: integration tests verify that n-gram
+  tokenization prevents false positives (e.g., `"sql"` does not match
+  `"mysql"` or `"nosql"`).
+- **Dedup correctness**: after deduplication, the (job, skill, method)
+  key has exactly one row with the highest score and merged hit flags.
 - **FQN uniqueness**: all Gold table FQNs are collected into a set and
   verified to be distinct (prevents copy-paste naming errors).
 - **Validation check cardinality**: the factory is called with mock
-  objects and verified to return ≥ 30 `NamedCheck` instances with unique
+  objects and verified to return >= 30 `NamedCheck` instances with unique
   names.
 
 ---
@@ -1132,11 +1192,16 @@ downstream automation and enables structured alerting.
 
 ### 14.9 JVM Crash Mitigations
 
-Gold SparkSessions disable `wholeStageCodegen`, `vectorizedReader`, and
+Non-Gold SparkSessions (Adzuna Silver, ESCO Silver, Search, Validation)
+disable `wholeStageCodegen`, `vectorizedReader`, and
 `adaptiveQueryExecution` — three features known to cause native SIGSEGV
-crashes in Mac ARM and Docker Alpine environments. This is a
-production-safety measure documented in the codebase and discoverable
-via the CLI source.
+crashes in Mac ARM and Docker Alpine environments.
+
+**Gold SparkSessions now use normal performant Spark defaults** — the
+candidate equi-join architecture does not trigger the same codegen paths
+that caused crashes in the previous cross-join + regex strategy. If
+crashes recur in specific environments, the defensive settings can be
+re-added to the Gold CLI path.
 
 ### 14.10 Phased Execution with Early Exit
 
@@ -1154,10 +1219,14 @@ src/skill_radar/
 ├── domains/
 │   └── gold/
 │       ├── __init__.py
+│       ├── schema.py                       # Column naming conventions, table contracts
 │       ├── matching/
 │       │   ├── __init__.py
 │       │   ├── models.py                   # Score config, constants, result dataclasses
-│       │   ├── skill_matching.py           # Dictionary build, regex matching, dedup
+│       │   ├── label_dimension.py          # ESCO label dimension builder
+│       │   ├── job_candidates.py           # Bounded n-gram candidate generator
+│       │   ├── scoring.py                  # Centralized score expression builder
+│       │   ├── skill_matching.py           # Candidate equi-join matching, dedup
 │       │   ├── occupation_matching.py      # Title + relation matching, combine
 │       │   └── orchestrator.py             # Sequences matching pipeline, Iceberg write
 │       └── analytics/
@@ -1179,11 +1248,18 @@ src/skill_radar/
             └── gold.py                     # 37 validation checks, check helpers
 
 tests/unit/domains/gold/
-├── test_models.py                          # 24 tests — scoring, dataclasses
-├── test_skill_matching.py                  # 17 tests — normalize, regex, patterns
+├── test_models.py                          # 25 tests — scoring, constants, dataclasses
+├── test_skill_matching.py                  # 17 tests — normalize, regex (legacy helpers)
 ├── test_layout.py                          #  9 tests — FQN helpers, uniqueness
 ├── test_validation_checks.py              # 13 tests — check factory, exit codes
 └── test_cli.py                            #  5 tests — CLI registration, help
+
+tests/integration/domains/gold/
+├── conftest.py                            # Shared Spark fixtures, sample DataFrames
+├── test_label_dimension.py                # 11 tests — dimension build, tokens, dedup
+├── test_job_candidates.py                 #  9 tests — n-gram generation, bounding
+├── test_scoring.py                        #  5 tests — score expression correctness
+└── test_skill_matching_equijoin.py        # 10 tests — equi-join matching end-to-end
 ```
 
 ---

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from skill_radar.domains.gold.matching.models import (
+    CANDIDATE_MAX_NGRAM_SIZE,
     MATCH_METHOD_OCCUPATION_RELATION,
     MATCH_METHOD_OCCUPATION_TITLE,
     MATCH_METHOD_SKILL,
@@ -82,13 +83,17 @@ class TestMatchMethodConstants:
     """Match method string constants."""
 
     def test_skill_method_stable(self) -> None:
-        assert MATCH_METHOD_SKILL == "exact_dictionary_v1"
+        assert MATCH_METHOD_SKILL == "candidate_equijoin_v2"
 
     def test_occupation_title_method_stable(self) -> None:
         assert MATCH_METHOD_OCCUPATION_TITLE == "title_exact_v1"
 
     def test_occupation_relation_method_stable(self) -> None:
         assert MATCH_METHOD_OCCUPATION_RELATION == "relation_score_v1"
+
+    def test_candidate_max_ngram_size(self) -> None:
+        assert CANDIDATE_MAX_NGRAM_SIZE == 6
+        assert isinstance(CANDIDATE_MAX_NGRAM_SIZE, int)
 
 
 class TestOccupationRelationScore:

@@ -6,14 +6,25 @@ Reads Gold matching outputs and Adzuna Silver jobs to compute:
 3. Occupation-skill graph with market evidence.
 
 Writes results to Gold Iceberg tables with partition overwrite.
+
+Performance optimisations vs v1
+--------------------------------
+- **Selective persistence** of reused inputs (skill_matches, jobs_df)
+  with explicit ``unpersist()`` after consumption.
+- **Reduced eager actions**: only the final count per output table is
+  materialised — intermediate DataFrames are never counted.
+- **Structured phase timing** for observability.
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from pyspark import StorageLevel
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
@@ -32,8 +43,20 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_PERSIST_LEVEL = StorageLevel.MEMORY_AND_DISK
 
-# ── Iceberg write helper ─────────────────────────────────────────────────
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+
+def _phase_start(label: str) -> float:
+    logger.info("▶ %s", label)
+    return time.monotonic()
+
+
+def _phase_done(label: str, start: float) -> None:
+    elapsed = time.monotonic() - start
+    logger.info("✓ %s  (%.1fs)", label, elapsed)
 
 
 def _write_gold_table(
@@ -129,71 +152,80 @@ def run_gold_analytics(
         resolved_run_id,
     )
 
+    _persisted: list[DataFrame] = []
+
+    def _p(df: DataFrame) -> DataFrame:
+        df.persist(_PERSIST_LEVEL)
+        _persisted.append(df)
+        return df
+
     try:
         # Ensure Gold namespace
         gold_ns = layout.iceberg_namespace("gold")
         spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {gold_ns}")
 
-        # ── Read inputs ───────────────────────────────────────────────────
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 1 — Read inputs
+        # ══════════════════════════════════════════════════════════════════
+        t0 = _phase_start("Read analytics inputs")
 
-        skill_matches_fqn = layout.gold_job_skill_matches_fqn()
-        occ_matches_fqn = layout.gold_job_occupation_matches_fqn()
-        adzuna_fqn = layout.adzuna_silver_jobs_fqn()
-        skills_fqn = layout.esco_silver_skills_fqn()
-        occupations_fqn = layout.esco_silver_occupations_fqn()
-        relations_fqn = layout.esco_silver_relations_fqn()
+        partition_filter = (F.col("country") == country) & (
+            F.col("ingestion_date") == ingestion_date
+        )
+        esco_filter = (F.col("version") == esco_version) & (F.col("lang") == esco_lang)
 
-        logger.info("Reading Gold skill matches from %s", skill_matches_fqn)
-        skill_matches = spark.read.table(skill_matches_fqn).where(
-            (F.col("country") == country) & (F.col("ingestion_date") == ingestion_date)
+        # Reused across demand + salary KPIs → persist
+        skill_matches = _p(
+            spark.read.table(layout.gold_job_skill_matches_fqn()).where(partition_filter)
+        )
+        jobs_df = _p(spark.read.table(layout.adzuna_silver_jobs_fqn()).where(partition_filter))
+
+        occ_matches = spark.read.table(layout.gold_job_occupation_matches_fqn()).where(
+            partition_filter
         )
 
-        logger.info("Reading Adzuna Silver jobs from %s", adzuna_fqn)
-        jobs_df = spark.read.table(adzuna_fqn).where(
-            (F.col("country") == country) & (F.col("ingestion_date") == ingestion_date)
-        )
+        skills_df = spark.read.table(layout.esco_silver_skills_fqn()).where(esco_filter)
+        occupations_df = spark.read.table(layout.esco_silver_occupations_fqn()).where(esco_filter)
+        relations_df = spark.read.table(layout.esco_silver_relations_fqn()).where(esco_filter)
 
-        logger.info("Reading Gold occupation matches from %s", occ_matches_fqn)
-        occ_matches = spark.read.table(occ_matches_fqn).where(
-            (F.col("country") == country) & (F.col("ingestion_date") == ingestion_date)
-        )
+        _phase_done("Read analytics inputs", t0)
 
-        logger.info("Reading ESCO Silver dimensions")
-        skills_df = spark.read.table(skills_fqn).where(
-            (F.col("version") == esco_version) & (F.col("lang") == esco_lang)
-        )
-        occupations_df = spark.read.table(occupations_fqn).where(
-            (F.col("version") == esco_version) & (F.col("lang") == esco_lang)
-        )
-        relations_df = spark.read.table(relations_fqn).where(
-            (F.col("version") == esco_version) & (F.col("lang") == esco_lang)
-        )
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 2 — Skill demand daily
+        # ══════════════════════════════════════════════════════════════════
+        t0 = _phase_start("Compute skill demand daily")
 
-        # ── 1. Skill demand daily ────────────────────────────────────────
-
-        logger.info("Computing skill demand daily KPIs")
         skill_demand = compute_skill_demand_daily(skill_matches, jobs_df)
-        skill_demand_count = skill_demand.count()
-        result.skill_demand_rows = skill_demand_count
-        logger.info("Skill demand daily: %d rows", skill_demand_count)
 
         skill_demand_fqn = layout.gold_skill_demand_daily_fqn()
         _write_gold_table(skill_demand, skill_demand_fqn, spark)
 
-        # ── 2. Salary by skill daily ─────────────────────────────────────
+        # Count after write (Iceberg scan, lightweight)
+        result.skill_demand_rows = (
+            spark.read.table(skill_demand_fqn).where(partition_filter).count()
+        )
 
-        logger.info("Computing salary-by-skill daily KPIs")
+        _phase_done("Compute skill demand daily", t0)
+
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 3 — Salary by skill daily
+        # ══════════════════════════════════════════════════════════════════
+        t0 = _phase_start("Compute salary by skill daily")
+
         salary_by_skill = compute_salary_by_skill_daily(skill_matches, jobs_df)
-        salary_count = salary_by_skill.count()
-        result.salary_by_skill_rows = salary_count
-        logger.info("Salary by skill daily: %d rows", salary_count)
 
         salary_fqn = layout.gold_salary_by_skill_daily_fqn()
         _write_gold_table(salary_by_skill, salary_fqn, spark)
 
-        # ── 3. Occupation-skill graph ─────────────────────────────────────
+        result.salary_by_skill_rows = spark.read.table(salary_fqn).where(partition_filter).count()
 
-        logger.info("Computing occupation-skill graph")
+        _phase_done("Compute salary by skill daily", t0)
+
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 4 — Occupation-skill graph
+        # ══════════════════════════════════════════════════════════════════
+        t0 = _phase_start("Compute occupation-skill graph")
+
         occ_skill_graph = compute_occupation_skill_graph(
             skill_matches, occ_matches, relations_df, occupations_df, skills_df
         )
@@ -202,29 +234,36 @@ def run_gold_analytics(
         occ_skill_graph = (
             occ_skill_graph.withColumn(gold_schema.gold_meta("run_id"), F.lit(resolved_run_id))
             .withColumn(
-                gold_schema.gold_meta("generated_at_utc"), F.lit(generated_at).cast("timestamp")
+                gold_schema.gold_meta("generated_at_utc"),
+                F.lit(generated_at).cast("timestamp"),
             )
             .withColumn("esco_version", F.lit(esco_version))
             .withColumn("esco_lang", F.lit(esco_lang))
         )
 
-        graph_count = occ_skill_graph.count()
-        result.occupation_skill_graph_rows = graph_count
-        logger.info("Occupation-skill graph: %d rows", graph_count)
-
         graph_fqn = layout.gold_occupation_skill_graph_fqn()
         _write_gold_table(occ_skill_graph, graph_fqn, spark)
 
+        result.occupation_skill_graph_rows = (
+            spark.read.table(graph_fqn).where(partition_filter).count()
+        )
+
+        _phase_done("Compute occupation-skill graph", t0)
+
         logger.info(
             "Gold analytics complete: demand=%d salary=%d graph=%d",
-            skill_demand_count,
-            salary_count,
-            graph_count,
+            result.skill_demand_rows,
+            result.salary_by_skill_rows,
+            result.occupation_skill_graph_rows,
         )
 
     except Exception as exc:
         result.success = False
         result.error = str(exc)
         logger.exception("Gold analytics failed")
+    finally:
+        for df in _persisted:
+            with contextlib.suppress(Exception):
+                df.unpersist()
 
     return result

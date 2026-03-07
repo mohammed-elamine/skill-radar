@@ -100,6 +100,47 @@ class AdzunaConfig(BaseModel):
     default_preset: str = "default_fr"
 
 
+class SearchIndicesConfig(BaseModel):
+    """Logical index name suffixes for each served dataset.
+
+    Combined with ``SearchConfig.index_prefix`` at runtime to form
+    the full Elasticsearch index/alias name.
+    """
+
+    skill_demand_daily: str = "skill-demand-daily"
+    salary_by_skill_daily: str = "salary-by-skill-daily"
+    occupation_skill_graph: str = "occupation-skill-graph"
+    job_skill_matches: str = "job-skill-matches"
+    job_occupation_matches: str = "job-occupation-matches"
+
+
+class SearchConfig(BaseModel):
+    """Elasticsearch / Kibana serving-layer configuration.
+
+    All fields are environment-driven via ``SKILLRADAR_SEARCH_*`` env vars.
+    Elasticsearch is a serving/indexing layer only — Gold/Iceberg remains
+    the source of truth.
+    """
+
+    enabled: bool = True
+    elasticsearch_url: str = "http://localhost:9200"
+    elasticsearch_url_docker: str = "http://elasticsearch:9200"
+    kibana_url: str = "http://localhost:5601"
+    kibana_url_docker: str = "http://kibana:5601"
+    index_prefix: str = "skillradar"
+    index_replicas: int = 0
+    index_shards: int = 1
+    request_timeout_seconds: int = 30
+    bulk_chunk_size: int = 500
+    bulk_max_retries: int = 3
+    bulk_retry_backoff_seconds: int = 2
+    country_default: str = "fr"
+    dashboard_bootstrap_enabled: bool = False
+    create_index_if_missing: bool = True
+    use_tls: bool = False
+    indices: SearchIndicesConfig = Field(default_factory=SearchIndicesConfig)
+
+
 class EscoSilverValidationConfig(BaseModel):
     """ESCO Silver validation configuration."""
 
@@ -137,4 +178,5 @@ class PlatformSettings(BaseModel):
     manifest: ManifestConfig = Field(default_factory=ManifestConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     adzuna: AdzunaConfig = Field(default_factory=AdzunaConfig)
+    search: SearchConfig = Field(default_factory=SearchConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)

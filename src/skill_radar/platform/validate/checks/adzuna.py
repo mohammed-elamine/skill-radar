@@ -21,7 +21,7 @@ from skill_radar.platform.validate.checks.lakehouse import (
 from skill_radar.platform.validate.models import CheckResult, NamedCheck, create_check
 
 if TYPE_CHECKING:
-    from pyspark.sql import SparkSession
+    from pyspark.sql import DataFrame, SparkSession
 
     from skill_radar.config.models import PlatformSettings
 
@@ -216,17 +216,71 @@ _BRONZE_LINEAGE_COLS = ["source_system", "country", "run_id", "ingestion_date"]
 _SILVER_LINEAGE_COLS = ["source_system", "country", "silver_run_id", "ingestion_date"]
 
 
+# ---------------------------------------------------------------------------
+# Partition-scoping helper
+# ---------------------------------------------------------------------------
+
+
+def _silver_partition_df(
+    spark: SparkSession,
+    table_fqn: str,
+    *,
+    country: str | None = None,
+    ingestion_date: str | None = None,
+) -> DataFrame:
+    """Return a Silver DataFrame optionally filtered to a target partition.
+
+    When both *country* and *ingestion_date* are supplied, Iceberg pushes
+    the predicate down to the partition spec so only the matching data files
+    are scanned.  When either parameter is ``None`` the corresponding
+    filter is omitted, allowing the full table to be read when desired.
+    """
+    df: DataFrame = spark.table(table_fqn)
+    if country is not None:
+        df = df.filter(df["country"] == country)
+    if ingestion_date is not None:
+        df = df.filter(df["ingestion_date"] == ingestion_date)
+    return df
+
+
+def _partition_where_clause(
+    *,
+    country: str | None = None,
+    ingestion_date: str | None = None,
+) -> str:
+    """Build a SQL WHERE fragment for partition columns.
+
+    Returns an empty string when no filters are needed, otherwise returns
+    ``" AND country = '…' AND ingestion_date = '…'"`` (with a leading AND
+    so it can be appended after an existing WHERE predicate).
+    """
+    parts: list[str] = []
+    if country is not None:
+        parts.append(f"country = '{country}'")
+    if ingestion_date is not None:
+        parts.append(f"ingestion_date = '{ingestion_date}'")
+    if not parts:
+        return ""
+    return " AND " + " AND ".join(parts)
+
+
 def _check_lineage_columns_present(
     spark: SparkSession,
     table_fqn: str,
     check_name_prefix: str,
     *,
     lineage_cols: list[str] | None = None,
+    country: str | None = None,
+    ingestion_date: str | None = None,
 ) -> CheckResult:
-    """Check that lineage columns are present and populated."""
+    """Check that lineage columns are present and populated.
+
+    When *country* / *ingestion_date* are given, the check verifies that at
+    least one row in the target partition carries non-null lineage values.
+    """
     lineage_cols = lineage_cols or _BRONZE_LINEAGE_COLS
     try:
-        df = spark.table(table_fqn)
+        df = _silver_partition_df(spark, table_fqn, country=country, ingestion_date=ingestion_date)
         actual = set(df.columns)
         missing = [c for c in lineage_cols if c not in actual]
         if missing:
@@ -330,15 +384,24 @@ def get_bronze_checks(
 # ---------------------------------------------------------------------------
 
 
-def _check_silver_key_population(spark: SparkSession, table_fqn: str) -> CheckResult:
-    """Check that key Silver fields are populated."""
+def _check_silver_key_population(
+    spark: SparkSession,
+    table_fqn: str,
+    *,
+    country: str | None = None,
+    ingestion_date: str | None = None,
+) -> CheckResult:
+    """Check that key Silver fields are populated (partition-scoped)."""
     try:
-        total = spark.sql(f"SELECT COUNT(*) AS cnt FROM {table_fqn}").collect()[0]["cnt"]
+        extra = _partition_where_clause(country=country, ingestion_date=ingestion_date)
+        total = spark.sql(f"SELECT COUNT(*) AS cnt FROM {table_fqn} WHERE 1=1{extra}").collect()[0][
+            "cnt"
+        ]
         with_keys = spark.sql(
             f"SELECT COUNT(*) AS cnt FROM {table_fqn} "
             "WHERE job_id IS NOT NULL AND TRIM(job_id) != '' "
             "AND job_title IS NOT NULL AND TRIM(job_title) != '' "
-            "AND country IS NOT NULL AND TRIM(country) != ''"
+            f"AND country IS NOT NULL AND TRIM(country) != ''{extra}"
         ).collect()[0]["cnt"]
         ratio = with_keys / total if total > 0 else 0.0
         return create_check(
@@ -357,13 +420,20 @@ def _check_silver_key_population(spark: SparkSession, table_fqn: str) -> CheckRe
         )
 
 
-def _check_salary_consistency(spark: SparkSession, table_fqn: str) -> CheckResult:
-    """Check that salary_min <= salary_max when both are non-null."""
+def _check_salary_consistency(
+    spark: SparkSession,
+    table_fqn: str,
+    *,
+    country: str | None = None,
+    ingestion_date: str | None = None,
+) -> CheckResult:
+    """Check that salary_min <= salary_max when both are non-null (partition-scoped)."""
     try:
+        extra = _partition_where_clause(country=country, ingestion_date=ingestion_date)
         bad = spark.sql(
             f"SELECT COUNT(*) AS cnt FROM {table_fqn} "
             "WHERE salary_min IS NOT NULL AND salary_max IS NOT NULL "
-            "AND salary_min > salary_max"
+            f"AND salary_min > salary_max{extra}"
         ).collect()[0]["cnt"]
         return create_check(
             name="adzuna.silver.salary_consistency",
@@ -381,13 +451,20 @@ def _check_salary_consistency(spark: SparkSession, table_fqn: str) -> CheckResul
         )
 
 
-def _check_coordinate_sanity(spark: SparkSession, table_fqn: str) -> CheckResult:
-    """Check latitude ∈ [-90, 90] and longitude ∈ [-180, 180]."""
+def _check_coordinate_sanity(
+    spark: SparkSession,
+    table_fqn: str,
+    *,
+    country: str | None = None,
+    ingestion_date: str | None = None,
+) -> CheckResult:
+    """Check latitude in [-90, 90] and longitude in [-180, 180] (partition-scoped)."""
     try:
+        extra = _partition_where_clause(country=country, ingestion_date=ingestion_date)
         bad = spark.sql(
             f"SELECT COUNT(*) AS cnt FROM {table_fqn} "
             "WHERE (latitude IS NOT NULL AND (latitude < -90 OR latitude > 90)) "
-            "OR (longitude IS NOT NULL AND (longitude < -180 OR longitude > 180))"
+            f"OR (longitude IS NOT NULL AND (longitude < -180 OR longitude > 180)){extra}"
         ).collect()[0]["cnt"]
         return create_check(
             name="adzuna.silver.coordinate_sanity",
@@ -405,20 +482,33 @@ def _check_coordinate_sanity(spark: SparkSession, table_fqn: str) -> CheckResult
         )
 
 
-def _check_silver_duplicates(spark: SparkSession, table_fqn: str) -> CheckResult:
-    """Check for duplicate (country, job_id) pairs in Silver."""
+def _check_silver_duplicates(
+    spark: SparkSession,
+    table_fqn: str,
+    *,
+    country: str | None = None,
+    ingestion_date: str | None = None,
+) -> CheckResult:
+    """Check for duplicate (country, ingestion_date, job_id) tuples (partition-scoped).
+
+    The Silver table is a daily snapshot partitioned by
+    ``(ingestion_date, country)``.  The same ``job_id`` may legitimately
+    appear on different ingestion dates, so the correct uniqueness grain is
+    ``(country, ingestion_date, job_id)``.
+    """
     try:
+        extra = _partition_where_clause(country=country, ingestion_date=ingestion_date)
         dupes = spark.sql(
             f"SELECT COUNT(*) AS cnt FROM ("
-            f"  SELECT country, job_id, COUNT(*) AS n "
+            f"  SELECT country, ingestion_date, job_id, COUNT(*) AS n "
             f"  FROM {table_fqn} "
-            f"  WHERE job_id IS NOT NULL AND TRIM(job_id) != '' "
-            f"  GROUP BY country, job_id HAVING n > 1"
+            f"  WHERE job_id IS NOT NULL AND TRIM(job_id) != ''{extra} "
+            f"  GROUP BY country, ingestion_date, job_id HAVING n > 1"
             f")"
         ).collect()[0]["cnt"]
         return create_check(
             name="adzuna.silver.no_duplicates",
-            description="No duplicate (country, job_id) in Silver",
+            description="No duplicate (country, ingestion_date, job_id) in Silver",
             passed=dupes == 0,
             detail=f"duplicate_keys={dupes}",
             metrics={"duplicate_keys": dupes},
@@ -426,7 +516,37 @@ def _check_silver_duplicates(spark: SparkSession, table_fqn: str) -> CheckResult
     except Exception as exc:
         return create_check(
             name="adzuna.silver.no_duplicates",
-            description="No duplicate (country, job_id)",
+            description="No duplicate (country, ingestion_date, job_id)",
+            passed=False,
+            detail=str(exc)[:200],
+        )
+
+
+def _check_silver_partition_non_empty(
+    spark: SparkSession,
+    table_fqn: str,
+    *,
+    country: str | None = None,
+    ingestion_date: str | None = None,
+) -> CheckResult:
+    """Check that the target Silver partition contains at least one row."""
+    try:
+        extra = _partition_where_clause(country=country, ingestion_date=ingestion_date)
+        row_count = spark.sql(
+            f"SELECT COUNT(*) AS cnt FROM {table_fqn} WHERE 1=1{extra}"
+        ).collect()[0]["cnt"]
+        scope = "/".join(p for p in [country, ingestion_date] if p is not None) or "full-table"
+        return create_check(
+            name="adzuna.silver.partition_non_empty",
+            description=f"Silver partition ({scope}) is non-empty",
+            passed=row_count >= 1,
+            detail=f"row_count={row_count}",
+            metrics={"row_count": row_count},
+        )
+    except Exception as exc:
+        return create_check(
+            name="adzuna.silver.partition_non_empty",
+            description="Silver partition is non-empty",
             passed=False,
             detail=str(exc)[:200],
         )
@@ -436,15 +556,26 @@ def get_silver_checks(
     spark: SparkSession,
     config: PlatformSettings,
     *,
-    country: str | None = None,  # noqa: ARG001
-    ingestion_date: str | None = None,  # noqa: ARG001
+    country: str | None = None,
+    ingestion_date: str | None = None,
 ) -> list[NamedCheck]:
-    """Build the list of Adzuna Silver validation checks."""
+    """Build the list of Adzuna Silver validation checks.
+
+    When *country* and/or *ingestion_date* are provided the data-quality
+    checks (duplicates, key population, salary consistency, coordinate
+    sanity, lineage, non-empty) are scoped to the matching partition.
+    Structural checks (namespace, table existence, schema) always operate
+    at the table level.
+    """
     layout = LakeLayout(config)
     silver_fqn = layout.adzuna_silver_jobs_fqn()
     ns_name = layout.iceberg_namespace_name("silver")
 
+    # Shorthand for partition kwargs passed to every DQ check.
+    _pk = {"country": country, "ingestion_date": ingestion_date}
+
     checks: list[NamedCheck] = [
+        # -- Structural (table-level) checks --------------------------------
         NamedCheck(
             name="adzuna.silver.namespace_exists",
             description=f"Silver namespace {ns_name} exists",
@@ -465,25 +596,31 @@ def get_silver_checks(
             description="Silver adzuna_jobs has required columns",
             fn=lambda: check_table_schema_contains(spark, silver_fqn, SILVER_JOBS_REQUIRED),
         ),
+        # -- Partition-scoped DQ checks -------------------------------------
+        NamedCheck(
+            name="adzuna.silver.partition_non_empty",
+            description="Silver target partition is non-empty",
+            fn=lambda: _check_silver_partition_non_empty(spark, silver_fqn, **_pk),
+        ),
         NamedCheck(
             name="adzuna.silver.key_population",
             description="Key fields populated (job_id, job_title, country)",
-            fn=lambda: _check_silver_key_population(spark, silver_fqn),
+            fn=lambda: _check_silver_key_population(spark, silver_fqn, **_pk),
         ),
         NamedCheck(
             name="adzuna.silver.salary_consistency",
             description="salary_min <= salary_max",
-            fn=lambda: _check_salary_consistency(spark, silver_fqn),
+            fn=lambda: _check_salary_consistency(spark, silver_fqn, **_pk),
         ),
         NamedCheck(
             name="adzuna.silver.coordinate_sanity",
             description="Coordinate values in valid ranges",
-            fn=lambda: _check_coordinate_sanity(spark, silver_fqn),
+            fn=lambda: _check_coordinate_sanity(spark, silver_fqn, **_pk),
         ),
         NamedCheck(
             name="adzuna.silver.no_duplicates",
             description="No duplicate business keys",
-            fn=lambda: _check_silver_duplicates(spark, silver_fqn),
+            fn=lambda: _check_silver_duplicates(spark, silver_fqn, **_pk),
         ),
         NamedCheck(
             name="adzuna.silver.lineage",
@@ -493,6 +630,7 @@ def get_silver_checks(
                 silver_fqn,
                 "adzuna.silver",
                 lineage_cols=_SILVER_LINEAGE_COLS,
+                **_pk,
             ),
         ),
     ]

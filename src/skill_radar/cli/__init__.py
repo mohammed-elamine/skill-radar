@@ -7,6 +7,7 @@ Usage::
     uv run skill-radar validate esco-landing --version v1.2.0 --lang fr
     uv run skill-radar infra apply
     uv run skill-radar run infra
+    uv run skill-radar search export --ingestion-date 2026-03-06 --country fr
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from .esco import esco_group
 from .gold import gold_group
 from .infra import infra_group
 from .run import run_group
+from .search import search_group
 from .validate import validate_group
 
 
@@ -31,4 +33,5 @@ main.add_command(esco_group, name="esco")
 main.add_command(gold_group, name="gold")
 main.add_command(infra_group, name="infra")
 main.add_command(run_group, name="run")
+main.add_command(search_group, name="search")
 main.add_command(validate_group, name="validate")
