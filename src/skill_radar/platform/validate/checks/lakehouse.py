@@ -22,11 +22,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _infer_layer(table_fqn: str) -> str:
+    """Infer lake layer from a fully-qualified table name.
+
+    Looks for known layer tokens (``bronze``, ``silver``, ``gold``) anywhere
+    in the FQN.  Falls back to ``"lake"`` when no token is found.
+    """
+    lower = table_fqn.lower()
+    for layer in ("bronze", "silver", "gold"):
+        if layer in lower:
+            return layer
+    return "lake"
+
+
 def check_namespace_exists(
     spark: SparkSession,
     namespace: str,
     *,
     catalog: str = "sr",
+    layer: str | None = None,
 ) -> CheckResult:
     """Check that an Iceberg namespace exists.
 
@@ -38,8 +52,12 @@ def check_namespace_exists(
         Namespace to check (e.g. "sr_bronze").
     catalog:
         Iceberg catalog name.
+    layer:
+        Lake layer for check-name prefix (auto-detected from *namespace*
+        when omitted).
     """
     fqn = f"{catalog}.{namespace}"
+    prefix = layer or _infer_layer(namespace)
 
     try:
         namespaces = spark.sql(f"SHOW NAMESPACES IN {catalog}").collect()
@@ -47,13 +65,13 @@ def check_namespace_exists(
 
         if namespace in namespace_names:
             return create_check(
-                name=f"bronze.namespace.exists.{namespace}",
+                name=f"{prefix}.namespace.exists.{namespace}",
                 description=f"Namespace {fqn} exists",
                 passed=True,
             )
         else:
             return create_check(
-                name=f"bronze.namespace.exists.{namespace}",
+                name=f"{prefix}.namespace.exists.{namespace}",
                 description=f"Namespace {fqn} exists",
                 passed=False,
                 detail=f"Namespace not found (available: {namespace_names[:5]}...)",
@@ -61,7 +79,7 @@ def check_namespace_exists(
 
     except Exception as exc:
         return create_check(
-            name=f"bronze.namespace.exists.{namespace}",
+            name=f"{prefix}.namespace.exists.{namespace}",
             description=f"Namespace {fqn} exists",
             passed=False,
             detail=str(exc)[:200],
@@ -71,6 +89,8 @@ def check_namespace_exists(
 def check_table_exists(
     spark: SparkSession,
     table_fqn: str,
+    *,
+    layer: str | None = None,
 ) -> CheckResult:
     """Check that an Iceberg table exists.
 
@@ -80,12 +100,18 @@ def check_table_exists(
         Active SparkSession.
     table_fqn:
         Fully-qualified table name (e.g. "sr.sr_bronze.esco_skills_raw").
+    layer:
+        Lake layer for check-name prefix (auto-detected from *table_fqn*
+        when omitted).
     """
+    prefix = layer or _infer_layer(table_fqn)
+    tbl_short = table_fqn.split(".")[-1]
+
     try:
         # Try to describe the table
         spark.sql(f"DESCRIBE TABLE {table_fqn}").collect()
         return create_check(
-            name=f"bronze.table.exists.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.table.exists.{tbl_short}",
             description=f"Table {table_fqn} exists",
             passed=True,
         )
@@ -93,13 +119,13 @@ def check_table_exists(
         exc_str = str(exc).lower()
         if "table or view not found" in exc_str or "nosuch" in exc_str:
             return create_check(
-                name=f"bronze.table.exists.{table_fqn.split('.')[-1]}",
+                name=f"{prefix}.table.exists.{tbl_short}",
                 description=f"Table {table_fqn} exists",
                 passed=False,
                 detail="Table does not exist",
             )
         return create_check(
-            name=f"bronze.table.exists.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.table.exists.{tbl_short}",
             description=f"Table {table_fqn} exists",
             passed=False,
             detail=str(exc)[:200],
@@ -111,6 +137,7 @@ def check_table_non_empty(
     table_fqn: str,
     *,
     min_rows: int = 1,
+    layer: str | None = None,
 ) -> CheckResult:
     """Check that an Iceberg table has rows.
 
@@ -122,14 +149,20 @@ def check_table_non_empty(
         Fully-qualified table name.
     min_rows:
         Minimum expected row count.
+    layer:
+        Lake layer for check-name prefix (auto-detected from *table_fqn*
+        when omitted).
     """
+    prefix = layer or _infer_layer(table_fqn)
+    tbl_short = table_fqn.split(".")[-1]
+
     try:
         count_row = spark.sql(f"SELECT COUNT(*) as cnt FROM {table_fqn}").collect()
         row_count = count_row[0]["cnt"]
 
         passed = row_count >= min_rows
         return create_check(
-            name=f"bronze.table.non_empty.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.table.non_empty.{tbl_short}",
             description=f"Table {table_fqn} has >= {min_rows} rows",
             passed=passed,
             detail=f"row_count={row_count}",
@@ -137,7 +170,7 @@ def check_table_non_empty(
         )
     except Exception as exc:
         return create_check(
-            name=f"bronze.table.non_empty.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.table.non_empty.{tbl_short}",
             description=f"Table {table_fqn} has >= {min_rows} rows",
             passed=False,
             detail=str(exc)[:200],
@@ -148,6 +181,8 @@ def check_table_schema_contains(
     spark: SparkSession,
     table_fqn: str,
     required_columns: list[str],
+    *,
+    layer: str | None = None,
 ) -> CheckResult:
     """Check that an Iceberg table contains required columns.
 
@@ -159,7 +194,13 @@ def check_table_schema_contains(
         Fully-qualified table name.
     required_columns:
         List of column names that must exist.
+    layer:
+        Lake layer for check-name prefix (auto-detected from *table_fqn*
+        when omitted).
     """
+    prefix = layer or _infer_layer(table_fqn)
+    tbl_short = table_fqn.split(".")[-1]
+
     try:
         df = spark.table(table_fqn)
         actual_columns = set(df.columns)
@@ -168,7 +209,7 @@ def check_table_schema_contains(
 
         if missing:
             return create_check(
-                name=f"bronze.schema.contains.{table_fqn.split('.')[-1]}",
+                name=f"{prefix}.schema.contains.{tbl_short}",
                 description=f"Table {table_fqn} contains required columns",
                 passed=False,
                 detail=f"Missing: {missing}",
@@ -176,7 +217,7 @@ def check_table_schema_contains(
             )
 
         return create_check(
-            name=f"bronze.schema.contains.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.schema.contains.{tbl_short}",
             description=f"Table {table_fqn} contains required columns",
             passed=True,
             detail=f"{len(required_columns)} required columns present",
@@ -184,7 +225,7 @@ def check_table_schema_contains(
         )
     except Exception as exc:
         return create_check(
-            name=f"bronze.schema.contains.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.schema.contains.{tbl_short}",
             description=f"Table {table_fqn} contains required columns",
             passed=False,
             detail=str(exc)[:200],
@@ -198,6 +239,7 @@ def check_lineage_values(
     expected_dataset: str | None = None,
     expected_version: str | None = None,
     expected_lang: str | None = None,
+    layer: str | None = None,
 ) -> CheckResult:
     """Check that lineage columns have expected values.
 
@@ -213,7 +255,11 @@ def check_lineage_values(
         Expected value for 'version' column.
     expected_lang:
         Expected value for 'lang' column.
+    layer:
+        Lake layer for check-name prefix (auto-detected when omitted).
     """
+    prefix = layer or _infer_layer(table_fqn)
+    tbl_short = table_fqn.split(".")[-1]
 
     try:
         df = spark.table(table_fqn)
@@ -223,7 +269,7 @@ def check_lineage_values(
         missing = [c for c in lineage_cols if c not in cols]
         if missing:
             return create_check(
-                name=f"bronze.lineage.values.{table_fqn.split('.')[-1]}",
+                name=f"{prefix}.lineage.values.{tbl_short}",
                 description=f"Lineage values correct in {table_fqn}",
                 passed=False,
                 detail=f"Missing lineage columns: {missing}",
@@ -258,7 +304,7 @@ def check_lineage_values(
 
         if issues:
             return create_check(
-                name=f"bronze.lineage.values.{table_fqn.split('.')[-1]}",
+                name=f"{prefix}.lineage.values.{tbl_short}",
                 description=f"Lineage values correct in {table_fqn}",
                 passed=False,
                 detail="; ".join(issues)[:200],
@@ -266,7 +312,7 @@ def check_lineage_values(
             )
 
         return create_check(
-            name=f"bronze.lineage.values.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.lineage.values.{tbl_short}",
             description=f"Lineage values correct in {table_fqn}",
             passed=True,
             metrics={"groups": len(rows)},
@@ -274,7 +320,7 @@ def check_lineage_values(
 
     except Exception as exc:
         return create_check(
-            name=f"bronze.lineage.values.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.lineage.values.{tbl_short}",
             description=f"Lineage values correct in {table_fqn}",
             passed=False,
             detail=str(exc)[:200],
@@ -284,6 +330,8 @@ def check_lineage_values(
 def check_partitioning(
     spark: SparkSession,
     table_fqn: str,
+    *,
+    layer: str | None = None,
 ) -> CheckResult:
     """Check table partitioning configuration.
 
@@ -295,13 +343,18 @@ def check_partitioning(
         Active SparkSession.
     table_fqn:
         Fully-qualified table name.
+    layer:
+        Lake layer for check-name prefix (auto-detected when omitted).
     """
+    prefix = layer or _infer_layer(table_fqn)
+    tbl_short = table_fqn.split(".")[-1]
+
     # Partitioning is optional in MVP - skip but provide info
     try:
         # Try to inspect partitioning via table metadata
         spark.sql(f"DESCRIBE TABLE EXTENDED {table_fqn}").collect()
         return create_check(
-            name=f"bronze.partitioning.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.partitioning.{tbl_short}",
             description=f"Partitioning check for {table_fqn}",
             passed=False,
             skip=True,
@@ -309,7 +362,7 @@ def check_partitioning(
         )
     except Exception:
         return create_check(
-            name=f"bronze.partitioning.{table_fqn.split('.')[-1]}",
+            name=f"{prefix}.partitioning.{tbl_short}",
             description=f"Partitioning check for {table_fqn}",
             passed=False,
             skip=True,

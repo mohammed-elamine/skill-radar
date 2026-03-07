@@ -411,31 +411,29 @@ class TestDAGStructure:
         assert adzuna_dag.dag_id == "adzuna_daily_pipeline"
 
     def test_adzuna_dag_task_count(self, adzuna_dag):
-        """Adzuna DAG has exactly 6 tasks."""
-        assert len(adzuna_dag.tasks) == 6
+        """Adzuna DAG has 3 or 4 coarse stage-unit tasks (4 when search enabled)."""
+        # Without search: bronze_unit → silver_unit → gold_unit (3)
+        # With search:    + search_unit (4)
+        assert len(adzuna_dag.tasks) in (3, 4)
 
     def test_adzuna_dag_task_ids(self, adzuna_dag):
-        """Adzuna DAG has the expected task ids."""
+        """Adzuna DAG has the expected coarse stage-unit task ids."""
         task_ids = {t.task_id for t in adzuna_dag.tasks}
-        expected = {
-            "adzuna_bronze",
-            "validate_adzuna_bronze",
-            "adzuna_silver",
-            "validate_adzuna_silver",
-            "gold_pipeline",
-            "validate_gold",
+        core = {
+            "adzuna_bronze_unit",
+            "adzuna_silver_unit",
+            "gold_unit",
         }
-        assert task_ids == expected
+        assert core.issubset(task_ids)
+        # search_unit is optional (based on SEARCH_ENABLED)
+        assert task_ids - core <= {"search_unit"}
 
     def test_adzuna_dag_linear_chain(self, adzuna_dag):
-        """Adzuna DAG follows a strict linear chain."""
+        """Adzuna DAG follows a strict linear chain of coarse units."""
         chain = [
-            "adzuna_bronze",
-            "validate_adzuna_bronze",
-            "adzuna_silver",
-            "validate_adzuna_silver",
-            "gold_pipeline",
-            "validate_gold",
+            "adzuna_bronze_unit",
+            "adzuna_silver_unit",
+            "gold_unit",
         ]
         task_map = {t.task_id: t for t in adzuna_dag.tasks}
         for i in range(len(chain) - 1):
@@ -458,28 +456,21 @@ class TestDAGStructure:
         assert esco_dag.schedule_interval is None
 
     def test_esco_dag_task_ids(self, esco_dag):
-        """ESCO DAG has the expected task ids."""
+        """ESCO DAG has the expected coarse stage-unit task ids."""
         task_ids = {t.task_id for t in esco_dag.tasks}
         expected = {
-            "validate_esco_landing",
-            "esco_bronze",
-            "validate_esco_bronze",
-            "esco_silver",
-            "validate_esco_silver",
+            "esco_bronze_unit",
+            "esco_silver_unit",
             "should_run_gold",
-            "gold_pipeline",
-            "validate_gold",
+            "gold_unit",
         }
         assert task_ids == expected
 
     def test_esco_dag_core_chain(self, esco_dag):
-        """ESCO DAG core chain: landing → bronze → validate → silver → validate."""
+        """ESCO DAG core chain: bronze_unit → silver_unit."""
         chain = [
-            "validate_esco_landing",
-            "esco_bronze",
-            "validate_esco_bronze",
-            "esco_silver",
-            "validate_esco_silver",
+            "esco_bronze_unit",
+            "esco_silver_unit",
         ]
         task_map = {t.task_id: t for t in esco_dag.tasks}
         for i in range(len(chain) - 1):
@@ -488,9 +479,9 @@ class TestDAGStructure:
             assert downstream.task_id in {t.task_id for t in upstream.downstream_list}
 
     def test_esco_dag_gold_gated(self, esco_dag):
-        """Gold pipeline is gated by should_run_gold."""
+        """Gold unit is gated by should_run_gold."""
         task_map = {t.task_id: t for t in esco_dag.tasks}
-        gold_task = task_map["gold_pipeline"]
+        gold_task = task_map["gold_unit"]
         upstream_ids = {t.task_id for t in gold_task.upstream_list}
         assert "should_run_gold" in upstream_ids
 
@@ -505,3 +496,181 @@ class TestDAGStructure:
     def test_esco_dag_tags(self, esco_dag):
         assert "skill-radar" in esco_dag.tags
         assert "esco" in esco_dag.tags
+
+
+# ===========================================================================
+# Pool / priority / mount-mode tests
+# ===========================================================================
+
+
+class TestPoolAndMounts:
+    """Tests for pool, priority_weight, and mount-mode config."""
+
+    @pytest.fixture(autouse=True)
+    def _reload_config(self):
+        """Ensure config is loaded with clean defaults."""
+        import _shared.config as cfg_mod
+
+        importlib.reload(cfg_mod)
+
+    def test_default_pool_name(self):
+        """Default Spark pool name is spark_containers."""
+        import _shared.config as cfg_mod
+
+        assert cfg_mod.SPARK_POOL == "spark_containers"
+
+    def test_pool_slots_default(self):
+        """Default pool slots is 2."""
+        import _shared.config as cfg_mod
+
+        assert cfg_mod.SPARK_POOL_SLOTS == 2
+
+    def test_factory_injects_pool(self):
+        """Factory assigns pool to DockerOperator kwargs."""
+        from _shared import docker_tasks as dt_mod
+
+        with patch.object(dt_mod, "DockerOperator") as MockOp:
+            mock_dag = MagicMock()
+            mock_dag.dag_id = "test_dag"
+
+            dt_mod.make_skill_radar_task(
+                task_id="t",
+                command="echo 1",
+                dag=mock_dag,
+            )
+
+            call_kwargs = MockOp.call_args[1]
+            assert call_kwargs["pool"] == "spark_containers"
+
+    def test_factory_custom_pool(self):
+        """Factory accepts a pool override per task."""
+        from _shared import docker_tasks as dt_mod
+
+        with patch.object(dt_mod, "DockerOperator") as MockOp:
+            mock_dag = MagicMock()
+            mock_dag.dag_id = "test_dag"
+
+            dt_mod.make_skill_radar_task(
+                task_id="t",
+                command="echo 1",
+                dag=mock_dag,
+                pool="custom_pool",
+            )
+
+            call_kwargs = MockOp.call_args[1]
+            assert call_kwargs["pool"] == "custom_pool"
+
+    def test_factory_priority_weight(self):
+        """Factory injects priority_weight into kwargs."""
+        from _shared import docker_tasks as dt_mod
+
+        with patch.object(dt_mod, "DockerOperator") as MockOp:
+            mock_dag = MagicMock()
+            mock_dag.dag_id = "test_dag"
+
+            dt_mod.make_skill_radar_task(
+                task_id="t",
+                command="echo 1",
+                dag=mock_dag,
+                priority_weight=10,
+            )
+
+            call_kwargs = MockOp.call_args[1]
+            assert call_kwargs["priority_weight"] == 10
+
+    def test_dev_mount_mode_includes_src(self):
+        """Dev mode includes src, pyproject.toml, uv.lock mounts."""
+        clean_env = {k: v for k, v in os.environ.items() if not k.startswith("SKILLRADAR_")}
+        with patch.dict(os.environ, {**clean_env, "SKILLRADAR_MOUNT_MODE": "dev"}, clear=False):
+            import _shared.config as cfg_mod
+
+            importlib.reload(cfg_mod)
+            targets = [m["target"] for m in cfg_mod.CONTAINER_MOUNTS]
+            assert "/opt/skillradar/src" in targets
+            assert "/opt/skillradar/pyproject.toml" in targets
+
+    def test_prod_mount_mode_excludes_src(self):
+        """Prod mode does NOT include src, pyproject.toml, uv.lock mounts."""
+        clean_env = {k: v for k, v in os.environ.items() if not k.startswith("SKILLRADAR_")}
+        with patch.dict(os.environ, {**clean_env, "SKILLRADAR_MOUNT_MODE": "prod"}, clear=False):
+            import _shared.config as cfg_mod
+
+            importlib.reload(cfg_mod)
+            targets = [m["target"] for m in cfg_mod.CONTAINER_MOUNTS]
+            assert "/opt/skillradar/src" not in targets
+            assert "/opt/skillradar/pyproject.toml" not in targets
+            # Config and logs always present
+            assert "/opt/skillradar/configs" in targets
+            assert "/opt/skillradar/logs" in targets
+
+        # Reset to dev
+        importlib.reload(cfg_mod)
+
+    def test_docker_platform_unset_by_default(self):
+        """DOCKER_PLATFORM is None when env var is not set."""
+        clean_env = {k: v for k, v in os.environ.items() if not k.startswith("SKILLRADAR_")}
+        with patch.dict(os.environ, clean_env, clear=True):
+            import _shared.config as cfg_mod
+
+            importlib.reload(cfg_mod)
+            assert cfg_mod.DOCKER_PLATFORM is None
+
+    def test_docker_platform_from_env(self):
+        """DOCKER_PLATFORM is read from SKILLRADAR_DOCKER_PLATFORM."""
+        with patch.dict(os.environ, {"SKILLRADAR_DOCKER_PLATFORM": "linux/amd64"}, clear=False):
+            import _shared.config as cfg_mod
+
+            importlib.reload(cfg_mod)
+            assert cfg_mod.DOCKER_PLATFORM == "linux/amd64"
+
+        # Cleanup
+        importlib.reload(cfg_mod)
+
+    def test_factory_no_platform_when_unset(self):
+        """Factory does NOT include 'platform' when DOCKER_PLATFORM is None."""
+        from _shared import docker_tasks as dt_mod
+
+        with (
+            patch.object(dt_mod, "DockerOperator") as MockOp,
+            patch.object(dt_mod, "DOCKER_PLATFORM", None),
+        ):
+            mock_dag = MagicMock()
+            mock_dag.dag_id = "test_dag"
+
+            dt_mod.make_skill_radar_task(
+                task_id="t",
+                command="echo 1",
+                dag=mock_dag,
+            )
+
+            call_kwargs = MockOp.call_args[1]
+            assert "platform" not in call_kwargs
+
+    def test_factory_platform_when_set(self):
+        """Factory passes 'platform' kwarg when DOCKER_PLATFORM is configured."""
+        from _shared import docker_tasks as dt_mod
+
+        with (
+            patch.object(dt_mod, "DockerOperator") as MockOp,
+            patch.object(dt_mod, "DOCKER_PLATFORM", "linux/arm64"),
+        ):
+            mock_dag = MagicMock()
+            mock_dag.dag_id = "test_dag"
+
+            dt_mod.make_skill_radar_task(
+                task_id="t",
+                command="echo 1",
+                dag=mock_dag,
+            )
+
+            call_kwargs = MockOp.call_args[1]
+            assert call_kwargs["platform"] == "linux/arm64"
+
+    def test_task_environment_java_home(self):
+        """Task environment JAVA_HOME matches official Spark base image path."""
+        import _shared.config as cfg_mod
+
+        importlib.reload(cfg_mod)
+        env = cfg_mod.get_task_environment()
+        assert env["JAVA_HOME"] == "/opt/java/openjdk"
+        assert "/opt/java/openjdk/bin" in env["PATH"]

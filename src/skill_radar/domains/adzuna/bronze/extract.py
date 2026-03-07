@@ -19,6 +19,16 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from pyspark.sql.types import (
+    BooleanType,
+    DoubleType,
+    IntegerType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+)
+
 from skill_radar.config.adzuna import Settings as AdzunaCredentials
 from skill_radar.config.loader import load_platform_config
 from skill_radar.domains.adzuna.api.client import AdzunaClient, PageResult
@@ -32,6 +42,67 @@ if TYPE_CHECKING:
     from skill_radar.config.models import PlatformSettings
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Explicit Spark schemas — prevents CANNOT_DETERMINE_TYPE when all values
+# in a column are None (e.g., salary_min, salary_max, latitude, longitude).
+# ---------------------------------------------------------------------------
+
+ADZUNA_JOBS_BRONZE_SCHEMA = StructType(
+    [
+        StructField("job_id", StringType(), nullable=False),
+        StructField("adref", StringType(), nullable=True),
+        StructField("title", StringType(), nullable=True),
+        StructField("description", StringType(), nullable=True),
+        StructField("created_at_raw", StringType(), nullable=True),
+        StructField("redirect_url", StringType(), nullable=True),
+        StructField("latitude", DoubleType(), nullable=True),
+        StructField("longitude", DoubleType(), nullable=True),
+        StructField("salary_min", DoubleType(), nullable=True),
+        StructField("salary_max", DoubleType(), nullable=True),
+        StructField("salary_is_predicted_raw", StringType(), nullable=True),
+        StructField("contract_time_raw", StringType(), nullable=True),
+        StructField("contract_type_raw", StringType(), nullable=True),
+        StructField("location_display_name", StringType(), nullable=True),
+        StructField("location_area_json", StringType(), nullable=True),
+        StructField("category_tag", StringType(), nullable=True),
+        StructField("category_label", StringType(), nullable=True),
+        StructField("company_display_name", StringType(), nullable=True),
+        StructField("company_canonical_name", StringType(), nullable=True),
+        StructField("raw_payload_json", StringType(), nullable=True),
+        StructField("source_system", StringType(), nullable=False),
+        StructField("country", StringType(), nullable=False),
+        StructField("preset", StringType(), nullable=False),
+        StructField("search_key", StringType(), nullable=True),
+        StructField("search_params_json", StringType(), nullable=True),
+        StructField("page", IntegerType(), nullable=False),
+        StructField("results_per_page", IntegerType(), nullable=False),
+        StructField("api_result_position", IntegerType(), nullable=False),
+        StructField("extracted_at_utc", StringType(), nullable=False),
+        StructField("ingestion_date", StringType(), nullable=False),
+        StructField("run_id", StringType(), nullable=False),
+    ]
+)
+
+ADZUNA_REQUEST_LOG_BRONZE_SCHEMA = StructType(
+    [
+        StructField("source_system", StringType(), nullable=False),
+        StructField("country", StringType(), nullable=False),
+        StructField("preset", StringType(), nullable=False),
+        StructField("page", IntegerType(), nullable=False),
+        StructField("request_params_json", StringType(), nullable=True),
+        StructField("response_count", IntegerType(), nullable=True),
+        StructField("http_status", IntegerType(), nullable=True),
+        StructField("request_started_at_utc", StringType(), nullable=True),
+        StructField("request_finished_at_utc", StringType(), nullable=True),
+        StructField("duration_ms", LongType(), nullable=True),
+        StructField("success", BooleanType(), nullable=False),
+        StructField("error_message", StringType(), nullable=True),
+        StructField("run_id", StringType(), nullable=False),
+        StructField("ingestion_date", StringType(), nullable=False),
+    ]
+)
 
 
 # ---------------------------------------------------------------------------
@@ -177,16 +248,28 @@ def _write_bronze_append(
     rows: list[dict[str, Any]],
     table_fqn: str,
     partition_cols: list[str],
+    schema: StructType | None = None,
 ) -> int:
     """Write rows to a Bronze Iceberg table in append mode.
 
     Creates the table if it does not exist; appends otherwise.
     Returns the number of rows written.
+
+    Args:
+        spark: Active SparkSession.
+        rows: List of row dicts to write.
+        table_fqn: Fully qualified Iceberg table name.
+        partition_cols: Columns to partition by.
+        schema: Optional explicit schema to avoid type inference failures
+            when nullable columns have all-None values.
     """
     if not rows:
         return 0
 
-    df = spark.createDataFrame(rows)
+    if schema is not None:
+        df = spark.createDataFrame(rows, schema=schema)
+    else:
+        df = spark.createDataFrame(rows)
 
     if not spark.catalog.tableExists(table_fqn):
         logger.info("Creating Iceberg table: %s", table_fqn)
@@ -366,6 +449,7 @@ def run_bronze_extraction(
             bronze_rows,
             jobs_table,
             partition_cols=["ingestion_date", "country"],
+            schema=ADZUNA_JOBS_BRONZE_SCHEMA,
         )
 
         # Write request-log table.
@@ -387,6 +471,7 @@ def run_bronze_extraction(
             log_rows,
             log_table,
             partition_cols=["ingestion_date", "country"],
+            schema=ADZUNA_REQUEST_LOG_BRONZE_SCHEMA,
         )
 
         logger.info(

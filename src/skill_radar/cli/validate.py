@@ -802,3 +802,95 @@ def validate_gold(
     finally:
         with contextlib.suppress(Exception):
             spark.stop()
+
+
+# ---------------------------------------------------------------------------
+# Search validation commands
+# ---------------------------------------------------------------------------
+
+
+@validate_group.command("search")
+@click.option(
+    "--ingestion-date", "ingestion_date", required=True, help="Partition date YYYY-MM-DD."
+)
+@click.option("--country", required=True, help="Country code (e.g. fr).")
+@click.option(
+    "--dataset",
+    multiple=True,
+    default=None,
+    help="Dataset name(s) to validate (repeat for multiple). If omitted, validates primary datasets.",
+)
+@click.option("--es-url", "es_url", default=None, help="Elasticsearch URL override.")
+@click.option("--kibana-url", "kibana_url", default=None, help="Kibana URL override.")
+@click.option("--infra-only", is_flag=True, default=False, help="Only run infra health checks.")
+@click.option("--upload", is_flag=True, default=False, help="Upload report to S3 logs bucket")
+@click.option("--quiet", is_flag=True, default=False, help="Suppress console output")
+def validate_search(
+    ingestion_date: str,
+    country: str,
+    dataset: tuple[str, ...],
+    es_url: str | None,
+    kibana_url: str | None,
+    infra_only: bool,
+    upload: bool,
+    quiet: bool,
+) -> None:
+    """Validate Elasticsearch indices and Kibana health.
+
+    Checks include:
+    - Elasticsearch reachable & cluster health >= yellow
+    - Kibana reachable
+    - Index/alias exists for each dataset
+    - Mapping contains expected fields with correct types
+    - Document count > 0 for the served partition
+    - Required identifier fields are populated (sample-based)
+
+    Examples:
+        uv run skill-radar validate search --ingestion-date 2025-01-15 --country fr
+        uv run skill-radar validate search --ingestion-date 2025-01-15 --country fr --infra-only
+        uv run skill-radar validate search --ingestion-date 2025-01-15 --country fr --dataset skill_demand_daily
+    """
+    ctx = init_logging("validate_search", enable_file=True)
+    set_context(dataset="search")
+    config = load_platform_config()
+
+    from skill_radar.platform.validate.checks.search import (
+        get_search_checks,
+        get_search_infra_checks,
+    )
+
+    datasets_list = list(dataset) if dataset else None
+
+    if infra_only:
+        checks = get_search_infra_checks(config, es_url=es_url, kibana_url=kibana_url)
+    else:
+        checks = get_search_checks(
+            config,
+            ingestion_date=ingestion_date,
+            country=country,
+            datasets=datasets_list,
+            es_url=es_url,
+            kibana_url=kibana_url,
+        )
+
+    report = run_checks(
+        checks,
+        validator_name="search",
+        run_id=ctx.run_id,
+        quiet=quiet,
+    )
+
+    report.artifacts["ingestion_date"] = ingestion_date
+    report.artifacts["country"] = country
+    if datasets_list:
+        report.artifacts["datasets"] = ",".join(datasets_list)
+    if es_url:
+        report.artifacts["es_url"] = es_url
+
+    local_path, _s3_key = finalize_report(report, config=config, upload_s3=upload)
+
+    if not quiet:
+        print_footer(report, str(local_path))
+
+    finalize_logging()
+    sys.exit(ExitCode.OK if report.passed else ExitCode.SEARCH_FAILURE)

@@ -1,8 +1,10 @@
 """Adzuna Daily Pipeline DAG.
 
-Orchestrates the full Adzuna data pipeline for a single logical date:
+Orchestrates the full Adzuna data pipeline for a single logical date
+using **coarse stage units** — each task bundles processing + validation
+in a single Spark session to minimise container overhead:
 
-    bronze → validate_bronze → silver → validate_silver → gold → validate_gold
+    adzuna_bronze_unit → adzuna_silver_unit → gold_unit [→ search_unit]
 
 Schedule
 --------
@@ -12,8 +14,9 @@ Configurable via ``SKILLRADAR_ADZUNA_SCHEDULE`` (default: ``0 6 * * *``).
 Execution model
 ---------------
 Every task launches an **ephemeral container** from the Spark runtime image
-via ``DockerOperator``.  Business logic lives in the existing CLI commands;
-this DAG file is a thin orchestration wrapper.
+via ``DockerOperator`` and calls ``skill-radar run <stage-unit> --quiet``
+which performs both data processing and validation within one JVM/Spark
+session.
 
 Parameters
 ----------
@@ -34,6 +37,8 @@ from _shared.config import (
     ESCO_LANG,
     ESCO_VERSION,
     MAX_ACTIVE_RUNS,
+    SEARCH_ENABLED,
+    SEARCH_ES_URL_DOCKER,
 )
 from _shared.defaults import COMMON_DEFAULT_ARGS, dag_tags
 from _shared.docker_tasks import make_skill_radar_task
@@ -49,7 +54,7 @@ _DS = partition_date_macro()  # "{{ ds }}" — resolved at runtime
 _DOC_MD = f"""\
 ### Adzuna Daily Pipeline
 
-Runs the full Adzuna Bronze → Silver → Gold pipeline for **one logical date**.
+Runs the full Adzuna Bronze → Silver → Gold → Search pipeline for **one logical date**.
 
 | Parameter | Value |
 |-----------|-------|
@@ -58,15 +63,16 @@ Runs the full Adzuna Bronze → Silver → Gold pipeline for **one logical date*
 | ESCO version | `{ESCO_VERSION}` |
 | ESCO lang | `{ESCO_LANG}` |
 | Schedule | `{ADZUNA_SCHEDULE}` |
+| Search export | `{SEARCH_ENABLED}` |
 
-#### Task flow
+#### Task flow (coarse stage units)
 
-1. **adzuna_bronze** — fetch job postings from Adzuna API into Iceberg Bronze
-2. **validate_adzuna_bronze** — run Bronze-level validation checks
-3. **adzuna_silver** — normalize/deduplicate into Silver Iceberg
-4. **validate_adzuna_silver** — run Silver-level validation checks
-5. **gold_pipeline** — matching + analytics against ESCO taxonomy
-6. **validate_gold** — run Gold-level validation checks
+Each task bundles processing + validation in a single Spark session:
+
+1. **adzuna_bronze_unit** — fetch job postings → Iceberg Bronze + validate
+2. **adzuna_silver_unit** — normalize / deduplicate Bronze → Silver + validate
+3. **gold_unit** — matching + analytics against ESCO taxonomy + validate
+4. **search_unit** — export Gold → Elasticsearch + validate (if enabled)
 """
 
 # ---------------------------------------------------------------------------
@@ -75,7 +81,7 @@ Runs the full Adzuna Bronze → Silver → Gold pipeline for **one logical date*
 
 with DAG(
     dag_id="adzuna_daily_pipeline",
-    description="Daily Adzuna ingestion: Bronze → Silver → Gold with validation.",
+    description="Daily Adzuna ingestion: Bronze → Silver → Gold (coarse stage units).",
     doc_md=_DOC_MD,
     schedule=ADZUNA_SCHEDULE,
     start_date=datetime(2025, 1, 1),
@@ -86,74 +92,67 @@ with DAG(
         "on_failure_callback": on_task_failure,
         "on_success_callback": on_task_success,
     },
-    tags=dag_tags("adzuna", "daily", "bronze", "silver", "gold", "validation"),
+    tags=dag_tags("adzuna", "daily", "bronze", "silver", "gold", "search", "validation"),
 ) as dag:
-    # ── Bronze ──────────────────────────────────────────────────────────
-    adzuna_bronze = make_skill_radar_task(
-        task_id="adzuna_bronze",
+    # ── Bronze unit (extraction + validation) ───────────────────────────
+    adzuna_bronze_unit = make_skill_radar_task(
+        task_id="adzuna_bronze_unit",
         command=(
-            f"skill-radar adzuna bronze"
+            f"skill-radar run adzuna-bronze"
             f" --preset {ADZUNA_PRESET}"
             f" --country {ADZUNA_COUNTRY}"
             f" --ingestion-date {_DS}"
+            f" --upload --quiet"
         ),
         dag=dag,
+        priority_weight=4,
     )
 
-    validate_adzuna_bronze = make_skill_radar_task(
-        task_id="validate_adzuna_bronze",
+    # ── Silver unit (formatting + validation) ───────────────────────────
+    adzuna_silver_unit = make_skill_radar_task(
+        task_id="adzuna_silver_unit",
         command=(
-            f"skill-radar validate adzuna-bronze --country {ADZUNA_COUNTRY} --ingestion-date {_DS}"
+            f"skill-radar run adzuna-silver"
+            f" --country {ADZUNA_COUNTRY}"
+            f" --ingestion-date {_DS}"
+            f" --upload --quiet"
         ),
         dag=dag,
+        priority_weight=3,
     )
 
-    # ── Silver ──────────────────────────────────────────────────────────
-    adzuna_silver = make_skill_radar_task(
-        task_id="adzuna_silver",
-        command=(f"skill-radar adzuna silver --country {ADZUNA_COUNTRY} --ingestion-date {_DS}"),
-        dag=dag,
-    )
-
-    validate_adzuna_silver = make_skill_radar_task(
-        task_id="validate_adzuna_silver",
+    # ── Gold unit (matching + analytics + validation) ───────────────────
+    gold_unit = make_skill_radar_task(
+        task_id="gold_unit",
         command=(
-            f"skill-radar validate adzuna-silver --country {ADZUNA_COUNTRY} --ingestion-date {_DS}"
-        ),
-        dag=dag,
-    )
-
-    # ── Gold ────────────────────────────────────────────────────────────
-    gold_pipeline = make_skill_radar_task(
-        task_id="gold_pipeline",
-        command=(
-            f"skill-radar gold pipeline"
+            f"skill-radar run gold"
             f" --ingestion-date {_DS}"
             f" --country {ADZUNA_COUNTRY}"
             f" --esco-version {ESCO_VERSION}"
             f" --esco-lang {ESCO_LANG}"
+            f" --upload --quiet"
         ),
         dag=dag,
+        priority_weight=2,
     )
 
-    validate_gold = make_skill_radar_task(
-        task_id="validate_gold",
-        command=(
-            f"skill-radar validate gold"
-            f" --ingestion-date {_DS}"
-            f" --country {ADZUNA_COUNTRY}"
-            f" --esco-version {ESCO_VERSION}"
-            f" --esco-lang {ESCO_LANG}"
-        ),
-        dag=dag,
-    )
+    # ── Search unit (export + validation) ───────────────────────────────
+    if SEARCH_ENABLED:
+        search_unit = make_skill_radar_task(
+            task_id="search_unit",
+            command=(
+                f"skill-radar run search"
+                f" --ingestion-date {_DS}"
+                f" --country {ADZUNA_COUNTRY}"
+                f" --es-url {SEARCH_ES_URL_DOCKER}"
+                f" --upload --quiet"
+            ),
+            dag=dag,
+            priority_weight=1,
+        )
 
     # ── Dependencies ────────────────────────────────────────────────────
-    (
-        adzuna_bronze
-        >> validate_adzuna_bronze
-        >> adzuna_silver
-        >> validate_adzuna_silver
-        >> gold_pipeline
-        >> validate_gold
-    )
+    adzuna_bronze_unit >> adzuna_silver_unit >> gold_unit
+
+    if SEARCH_ENABLED:
+        gold_unit >> search_unit

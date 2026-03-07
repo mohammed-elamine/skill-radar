@@ -35,6 +35,23 @@ _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
     "SKILLRADAR_ADZUNA_MAX_RETRIES": ("adzuna", "max_retries"),
     "SKILLRADAR_ADZUNA_BACKOFF": ("adzuna", "backoff_seconds"),
     "SKILLRADAR_ADZUNA_DEFAULT_PRESET": ("adzuna", "default_preset"),
+    # Search / Elasticsearch
+    "SKILLRADAR_SEARCH_ENABLED": ("search", "enabled"),
+    "SKILLRADAR_SEARCH_ES_URL": ("search", "elasticsearch_url"),
+    "SKILLRADAR_SEARCH_ES_URL_DOCKER": ("search", "elasticsearch_url_docker"),
+    "SKILLRADAR_SEARCH_KIBANA_URL": ("search", "kibana_url"),
+    "SKILLRADAR_SEARCH_KIBANA_URL_DOCKER": ("search", "kibana_url_docker"),
+    "SKILLRADAR_SEARCH_INDEX_PREFIX": ("search", "index_prefix"),
+    "SKILLRADAR_SEARCH_INDEX_REPLICAS": ("search", "index_replicas"),
+    "SKILLRADAR_SEARCH_INDEX_SHARDS": ("search", "index_shards"),
+    "SKILLRADAR_SEARCH_TIMEOUT": ("search", "request_timeout_seconds"),
+    "SKILLRADAR_SEARCH_BULK_CHUNK_SIZE": ("search", "bulk_chunk_size"),
+    "SKILLRADAR_SEARCH_BULK_MAX_RETRIES": ("search", "bulk_max_retries"),
+    "SKILLRADAR_SEARCH_BULK_BACKOFF": ("search", "bulk_retry_backoff_seconds"),
+    "SKILLRADAR_SEARCH_COUNTRY_DEFAULT": ("search", "country_default"),
+    "SKILLRADAR_SEARCH_DASHBOARD_BOOTSTRAP": ("search", "dashboard_bootstrap_enabled"),
+    "SKILLRADAR_SEARCH_CREATE_INDEX": ("search", "create_index_if_missing"),
+    "SKILLRADAR_SEARCH_USE_TLS": ("search", "use_tls"),
 }
 
 

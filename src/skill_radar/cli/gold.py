@@ -51,13 +51,7 @@ def matching(ingestion_date, country, esco_version, esco_lang, job_limit, quiet)
     ctx = init_logging("gold_matching", enable_file=True)
     set_context(dataset="gold")
 
-    spark = (
-        SparkSession.builder.appName("gold_matching")
-        .config("spark.sql.codegen.wholeStage", "false")
-        .config("spark.sql.parquet.enableVectorizedReader", "false")
-        .config("spark.sql.adaptive.enabled", "false")
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName("gold_matching").getOrCreate()
     set_context(spark_app_id=spark.sparkContext.applicationId)
 
     try:
@@ -126,13 +120,7 @@ def analytics(ingestion_date, country, esco_version, esco_lang, quiet):
     ctx = init_logging("gold_analytics", enable_file=True)
     set_context(dataset="gold")
 
-    spark = (
-        SparkSession.builder.appName("gold_analytics")
-        .config("spark.sql.codegen.wholeStage", "false")
-        .config("spark.sql.parquet.enableVectorizedReader", "false")
-        .config("spark.sql.adaptive.enabled", "false")
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName("gold_analytics").getOrCreate()
     set_context(spark_app_id=spark.sparkContext.applicationId)
 
     try:
@@ -199,13 +187,7 @@ def pipeline(ingestion_date, country, esco_version, esco_lang, job_limit, quiet)
     ctx = init_logging("gold_pipeline", enable_file=True)
     set_context(dataset="gold")
 
-    spark = (
-        SparkSession.builder.appName("gold_pipeline")
-        .config("spark.sql.codegen.wholeStage", "false")
-        .config("spark.sql.parquet.enableVectorizedReader", "false")
-        .config("spark.sql.adaptive.enabled", "false")
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName("gold_pipeline").getOrCreate()
     set_context(spark_app_id=spark.sparkContext.applicationId)
 
     try:
