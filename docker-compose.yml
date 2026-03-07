@@ -89,8 +89,8 @@ services:
       ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
       ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
 
-      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk
-      PATH: /usr/lib/jvm/temurin-17-jdk/bin:/opt/skillradar/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      JAVA_HOME: /opt/java/openjdk
+      PATH: /opt/java/openjdk/bin:/opt/skillradar/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
       # Make your Python package importable (src/ layout)
       PYTHONPATH: /opt/skillradar/src
@@ -167,6 +167,7 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@airflow-postgres:5432/${AIRFLOW_DB_NAME:-airflow}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-change-me-to-a-long-random-secret}
       # --- Credentials forwarded to DAG config (DockerOperator env) ---
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -185,6 +186,9 @@ services:
       # --- Admin bootstrap (used by airflow-init command) ---
       AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER:-admin}
       AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      # --- Pool bootstrap ---
+      SKILLRADAR_SPARK_POOL: ${SKILLRADAR_SPARK_POOL:-spark_containers}
+      SKILLRADAR_SPARK_POOL_SLOTS: ${SKILLRADAR_SPARK_POOL_SLOTS:-2}
     volumes:
       - ./dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
@@ -208,6 +212,12 @@ services:
             --email admin@example.com
           echo "Airflow admin user created successfully."
         fi
+        echo "Ensuring Spark container pool: $$SKILLRADAR_SPARK_POOL ($$SKILLRADAR_SPARK_POOL_SLOTS slots)"
+        airflow pools set \
+          "$$SKILLRADAR_SPARK_POOL" \
+          "$$SKILLRADAR_SPARK_POOL_SLOTS" \
+          "Limits concurrent Spark/DockerOperator containers across all DAGs"
+        echo "Pool ready."
 
   airflow-webserver:
     profiles: ["airflow"]
@@ -278,6 +288,11 @@ services:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     ports:
       - "${KIBANA_PORT:-5601}:5601"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5601/api/status >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
 
 volumes:
   minio_data:

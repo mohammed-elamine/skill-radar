@@ -35,6 +35,16 @@ SKILLRADAR_TASK_RETRY_DELAY_SECONDS
     Seconds between retries (default: ``120``).
 SKILLRADAR_MAX_ACTIVE_RUNS
     Max concurrent DAG runs (default: ``1``).
+SKILLRADAR_SPARK_POOL
+    Airflow pool name for Spark containers (default: ``spark_containers``).
+SKILLRADAR_SPARK_POOL_SLOTS
+    Max concurrent Spark container tasks across all DAGs (default: ``2``).
+SKILLRADAR_MOUNT_MODE
+    ``dev`` (default) bind-mounts source code; ``prod`` relies on baked image.
+SKILLRADAR_DOCKER_PLATFORM
+    Optional Docker platform override (e.g. ``linux/amd64``, ``linux/arm64``).
+    When set, every DockerOperator container is pinned to that platform.
+    Omit to let Docker select the native platform.
 """
 
 from __future__ import annotations
@@ -77,6 +87,7 @@ def _env_bool(key: str, default: bool) -> bool:
 SPARK_IMAGE: str = _env("SKILLRADAR_SPARK_IMAGE", "skillradar-spark:3.5.7-uv")
 DOCKER_NETWORK: str = _env("SKILLRADAR_DOCKER_NETWORK", "skillradar_default")
 DOCKER_URL: str = _env("SKILLRADAR_DOCKER_URL", "unix://var/run/docker.sock")
+DOCKER_PLATFORM: str | None = os.environ.get("SKILLRADAR_DOCKER_PLATFORM") or None
 
 # ---------------------------------------------------------------------------
 # S3 / MinIO
@@ -113,6 +124,15 @@ ESCO_LANG: str = _env("SKILLRADAR_ESCO_LANG", "fr")
 ESCO_RUN_GOLD_AFTER: bool = _env_bool("SKILLRADAR_ESCO_RUN_GOLD_AFTER", False)
 
 # ---------------------------------------------------------------------------
+# Search pipeline defaults
+# ---------------------------------------------------------------------------
+
+SEARCH_ENABLED: bool = _env_bool("SKILLRADAR_SEARCH_ENABLED", True)
+SEARCH_ES_URL_DOCKER: str = _env(
+    "SKILLRADAR_SEARCH_ELASTICSEARCH_URL_DOCKER", "http://elasticsearch:9200"
+)
+
+# ---------------------------------------------------------------------------
 # Task execution defaults
 # ---------------------------------------------------------------------------
 
@@ -125,6 +145,30 @@ TASK_EXECUTION_TIMEOUT_SECONDS: int = _env_int(
 )
 
 # ---------------------------------------------------------------------------
+# Resource discipline (pools / concurrency)
+# ---------------------------------------------------------------------------
+
+# Limits how many *Spark containers* run concurrently across all DAGs.
+# Set via an Airflow pool named ``spark_containers`` (create it in the UI
+# or via ``airflow pools set spark_containers <slots> "…"``).
+SPARK_POOL: str = _env("SKILLRADAR_SPARK_POOL", "spark_containers")
+SPARK_POOL_SLOTS: int = _env_int("SKILLRADAR_SPARK_POOL_SLOTS", 2)
+
+# Task-level priority weight (higher = scheduled first when pool is
+# contended).  Individual DAGs can override per task.
+DEFAULT_PRIORITY_WEIGHT: int = _env_int("SKILLRADAR_DEFAULT_PRIORITY_WEIGHT", 1)
+
+# ---------------------------------------------------------------------------
+# Mount mode (dev vs production)
+# ---------------------------------------------------------------------------
+
+# In *dev* mode the source tree, pyproject.toml and uv.lock are bind-mounted
+# into every container so code changes are reflected immediately.
+# In *prod* mode these are baked into the image and only config, logs and
+# the incoming dropzone are mounted.
+MOUNT_MODE: str = _env("SKILLRADAR_MOUNT_MODE", "dev")  # "dev" | "prod"
+
+# ---------------------------------------------------------------------------
 # Container mounts (host paths → container paths)
 # ---------------------------------------------------------------------------
 
@@ -133,10 +177,10 @@ TASK_EXECUTION_TIMEOUT_SECONDS: int = _env_int(
 # identical access to code, config, and logs.
 CONTAINER_WORKING_DIR: str = "/opt/skillradar"
 
-CONTAINER_MOUNTS: list[dict[str, str]] = [
-    # Source code (read-only for safety)
+# Mounts required only during **development** (code is baked into the
+# image for production builds).
+_DEV_MOUNTS: list[dict[str, str]] = [
     {"source": "src", "target": "/opt/skillradar/src", "type": "bind", "read_only": True},
-    # Project descriptor (read-only)
     {
         "source": "pyproject.toml",
         "target": "/opt/skillradar/pyproject.toml",
@@ -144,7 +188,10 @@ CONTAINER_MOUNTS: list[dict[str, str]] = [
         "read_only": True,
     },
     {"source": "uv.lock", "target": "/opt/skillradar/uv.lock", "type": "bind", "read_only": True},
-    # Spark config
+]
+
+# Mounts shared by **all** modes (config, logs, jobs, dropzone).
+_COMMON_MOUNTS: list[dict[str, str]] = [
     {"source": "configs", "target": "/opt/skillradar/configs", "type": "bind", "read_only": True},
     {
         "source": "configs/spark-defaults.conf",
@@ -158,11 +205,8 @@ CONTAINER_MOUNTS: list[dict[str, str]] = [
         "type": "bind",
         "read_only": True,
     },
-    # Logs (writable)
     {"source": "logs", "target": "/opt/skillradar/logs", "type": "bind", "read_only": False},
-    # Jobs
     {"source": "jobs", "target": "/opt/skillradar/jobs", "type": "bind", "read_only": True},
-    # Dropzone (read-only)
     {
         "source": "data/incoming",
         "target": "/opt/skillradar/incoming",
@@ -170,6 +214,11 @@ CONTAINER_MOUNTS: list[dict[str, str]] = [
         "read_only": True,
     },
 ]
+
+# Pre-built list for backward compatibility — used by the task factory.
+CONTAINER_MOUNTS: list[dict[str, str]] = (
+    _DEV_MOUNTS + _COMMON_MOUNTS if MOUNT_MODE == "dev" else list(_COMMON_MOUNTS)
+)
 
 # ---------------------------------------------------------------------------
 # Container environment (forwarded into every DockerOperator task)
@@ -189,9 +238,9 @@ def get_task_environment() -> dict[str, str]:
         "AWS_DEFAULT_REGION": AWS_DEFAULT_REGION,
         "ADZUNA_APP_ID": ADZUNA_APP_ID,
         "ADZUNA_APP_KEY": ADZUNA_APP_KEY,
-        "JAVA_HOME": "/usr/lib/jvm/temurin-17-jdk",
+        "JAVA_HOME": "/opt/java/openjdk",
         "PATH": (
-            "/usr/lib/jvm/temurin-17-jdk/bin:"
+            "/opt/java/openjdk/bin:"
             "/opt/skillradar/.venv/bin:"
             "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         ),

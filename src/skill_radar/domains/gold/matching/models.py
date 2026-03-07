@@ -2,6 +2,7 @@
 
 This module is the single source of truth for:
 - match score scales (skill and occupation)
+- candidate generation parameters
 - Gold run metadata
 - result dataclasses for orchestration reporting
 """
@@ -11,9 +12,21 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+# ── Candidate generation parameters ───────────────────────────────────────
+
+# Maximum n-gram size for job candidate phrase extraction.
+#
+# ESCO skill labels rarely exceed 6 whitespace-delimited tokens in their
+# normalised form (e.g. "capacity to manage personal finances" = 6 tokens).
+# Setting a higher cap increases the number of candidate rows (and memory)
+# without meaningful recall gain.  The actual ceiling used at runtime is
+# min(CANDIDATE_MAX_NGRAM_SIZE, max_label_tokens) so this is an upper
+# bound, not a fixed value.
+CANDIDATE_MAX_NGRAM_SIZE: int = 6
+
 # ── Match score configuration ─────────────────────────────────────────────
 
-MATCH_METHOD_SKILL = "exact_dictionary_v1"
+MATCH_METHOD_SKILL = "candidate_equijoin_v2"
 MATCH_METHOD_OCCUPATION_TITLE = "title_exact_v1"
 MATCH_METHOD_OCCUPATION_RELATION = "relation_score_v1"
 

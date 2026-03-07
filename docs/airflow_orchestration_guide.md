@@ -32,9 +32,10 @@ Airflow acts as the **control-plane only**. No business logic, no Spark code, no
 
 | Principle | Implementation |
 |-----------|---------------|
-| No logic in DAGs | Tasks call `uv run skill-radar <command>` inside containers |
+| No logic in DAGs | Tasks call `skill-radar run <stage-unit>` inside containers |
+| Coarse stage units | Each task bundles processing + validation in a single Spark session |
 | Single image | All tasks use the same `skillradar-spark:3.5.7-uv` image |
-| CLI parity | Every Airflow task maps 1:1 to a CLI command |
+| Resource discipline | Spark containers share a pool to limit concurrent JVMs |
 | Idempotent reruns | All commands use `--ingestion-date {{ ds }}` to partition by date |
 | Environment-driven config | All tuning via `SKILLRADAR_*` env vars, never hardcoded |
 
@@ -78,17 +79,19 @@ Every pipeline task is created through a single factory function:
 from _shared.docker_tasks import make_skill_radar_task
 
 task = make_skill_radar_task(
-    task_id="adzuna_bronze",
-    command="uv run skill-radar adzuna bronze --preset default_fr --country fr --ingestion-date {{ ds }}",
+    task_id="adzuna_bronze_unit",
+    command="skill-radar run adzuna-bronze --preset default_fr --country fr --ingestion-date {{ ds }} --upload --quiet",
     dag=dag,
+    priority_weight=4,
 )
 ```
 
 The factory guarantees consistent:
 - **Image**: `SKILLRADAR_SPARK_IMAGE` (default: `skillradar-spark:3.5.7-uv`)
 - **Network**: `SKILLRADAR_DOCKER_NETWORK` (default: `skillradar_default`)
+- **Pool**: `SKILLRADAR_SPARK_POOL` (default: `spark_containers`) — limits concurrent Spark JVMs
 - **Environment**: Full set of credentials, paths, and runtime variables
-- **Mounts**: Source code, configs, data directories, and logs
+- **Mounts**: Configs, data directories, and logs (+ source code in dev mode)
 - **Lifecycle**: `auto_remove="success"`, no XCom push, no TTY
 
 ### Why DockerOperator?
@@ -167,22 +170,22 @@ The scheduler container has:
 **Schedule**: Configurable via `SKILLRADAR_ADZUNA_SCHEDULE` (default: `0 6 * * *`)<br>
 **Catchup**: `False`<br>
 
-#### Task Graph
+#### Task Graph (coarse stage units)
 
 ```
-adzuna_bronze → validate_adzuna_bronze → adzuna_silver → validate_adzuna_silver → gold_pipeline → validate_gold
+adzuna_bronze_unit → adzuna_silver_unit → gold_unit [→ search_unit]
 ```
+
+Each task bundles processing + validation in a single Spark session.
 
 #### Task Details
 
-| Task | CLI Command |
-|------|-------------|
-| `adzuna_bronze` | `uv run skill-radar adzuna bronze --preset {PRESET} --country {COUNTRY} --ingestion-date {{ ds }}` |
-| `validate_adzuna_bronze` | `uv run skill-radar validate adzuna-bronze --country {COUNTRY} --ingestion-date {{ ds }}` |
-| `adzuna_silver` | `uv run skill-radar adzuna silver --country {COUNTRY} --ingestion-date {{ ds }}` |
-| `validate_adzuna_silver` | `uv run skill-radar validate adzuna-silver --country {COUNTRY} --ingestion-date {{ ds }}` |
-| `gold_pipeline` | `uv run skill-radar gold pipeline --ingestion-date {{ ds }} --country {COUNTRY} --esco-version {VERSION} --esco-lang {LANG}` |
-| `validate_gold` | `uv run skill-radar validate gold --ingestion-date {{ ds }} --country {COUNTRY} --esco-version {VERSION} --esco-lang {LANG}` |
+| Task | CLI Command | Phases |
+|------|-------------|--------|
+| `adzuna_bronze_unit` | `skill-radar run adzuna-bronze --preset … --country … --ingestion-date {{ ds }} --upload --quiet` | extraction → bronze validation |
+| `adzuna_silver_unit` | `skill-radar run adzuna-silver --country … --ingestion-date {{ ds }} --upload --quiet` | formatting → silver validation |
+| `gold_unit` | `skill-radar run gold --ingestion-date {{ ds }} --country … --esco-version … --esco-lang … --upload --quiet` | matching → analytics → gold validation |
+| `search_unit` | `skill-radar run search --ingestion-date {{ ds }} --country … --es-url … --upload --quiet` | ES export → search validation |
 
 #### Trigger Examples
 
@@ -202,13 +205,22 @@ airflow dags trigger adzuna_daily_pipeline --exec-date 2025-01-15
 **DAG ID**: `esco_manual_pipeline`<br>
 **Schedule**: `None` (manual trigger only)<br>
 
-#### Task Graph
+#### Task Graph (coarse stage units)
 
 ```
-validate_esco_landing → esco_bronze → validate_esco_bronze → esco_silver → validate_esco_silver
-                                                                                 ↓
-                                                                          should_run_gold → gold_pipeline → validate_gold
+esco_bronze_unit → esco_silver_unit → [should_run_gold → gold_unit]
 ```
+
+Each task bundles processing + validation in a single Spark session.
+The bronze unit optionally includes landing validation (`--validate-landing`).
+
+#### Task Details
+
+| Task | CLI Command | Phases |
+|------|-------------|--------|
+| `esco_bronze_unit` | `skill-radar run esco-bronze --version … --lang … --validate-landing --upload --quiet` | [landing validation →] extraction → bronze validation |
+| `esco_silver_unit` | `skill-radar run esco-silver --version … --lang … --upload --quiet` | formatting → silver validation |
+| `gold_unit` | `skill-radar run gold --ingestion-date … --country … --esco-version … --esco-lang … --upload --quiet` | matching → analytics → gold validation |
 
 #### Runtime Parameters
 
@@ -307,6 +319,10 @@ All configuration is via environment variables set on the Airflow services in `d
 | `SKILLRADAR_TASK_RETRIES` | `2` | Default retry count |
 | `SKILLRADAR_TASK_RETRY_DELAY_SECONDS` | `120` | Seconds between retries |
 | `SKILLRADAR_MAX_ACTIVE_RUNS` | `1` | Max concurrent DAG runs |
+| `SKILLRADAR_SPARK_POOL` | `spark_containers` | Airflow pool for Spark containers |
+| `SKILLRADAR_SPARK_POOL_SLOTS` | `2` | Max concurrent Spark JVMs across DAGs |
+| `SKILLRADAR_DEFAULT_PRIORITY_WEIGHT` | `1` | Default pool priority (higher = scheduled first) |
+| `SKILLRADAR_MOUNT_MODE` | `dev` | `dev` mounts source code; `prod` relies on baked image |
 
 ---
 
@@ -452,7 +468,8 @@ This ensures the same CLI command works both interactively and under Airflow orc
 | `TestCallbacks` | 3 | Failure/success logging |
 | `TestDockerTasks` | 4 | Factory kwargs, env merging, mounts |
 | `TestDAGImports` | 4 | Clean parsing, DAG discovery |
-| `TestDAGStructure` | 12 | Task IDs, chains, schedules, params, tags |
+| `TestDAGStructure` | 12 | Coarse stage-unit task IDs, chains, schedules, params, tags |
+| `TestPoolAndMounts` | 7 | Pool injection, priority weights, dev/prod mount modes |
 
 ### Running Tests
 

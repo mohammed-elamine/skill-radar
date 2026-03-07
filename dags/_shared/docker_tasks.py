@@ -6,6 +6,14 @@ task should be created via :func:`make_skill_radar_task` rather than
 constructing a ``DockerOperator`` directly — this guarantees
 consistent image, network, mounts, environment, and lifecycle
 settings across all DAGs.
+
+Design rationale — coarse stage units
+--------------------------------------
+Each DockerOperator task corresponds to a **stage unit** that bundles
+a processing step AND its validation inside a single Spark session
+(e.g. ``skill-radar run adzuna-bronze`` performs extraction + bronze
+validation).  This halves the number of containers per DAG run while
+keeping the application-layer modular.
 """
 
 from __future__ import annotations
@@ -19,9 +27,12 @@ from docker.types import Mount
 from _shared.config import (
     CONTAINER_MOUNTS,
     CONTAINER_WORKING_DIR,
+    DEFAULT_PRIORITY_WEIGHT,
     DOCKER_NETWORK,
+    DOCKER_PLATFORM,
     DOCKER_URL,
     SPARK_IMAGE,
+    SPARK_POOL,
     get_task_environment,
 )
 
@@ -75,6 +86,8 @@ def make_skill_radar_task(
     extra_env: dict[str, str] | None = None,
     task_group: object | None = None,
     retries: int | None = None,
+    pool: str | None = None,
+    priority_weight: int | None = None,
 ) -> DockerOperator:
     """Create a ``DockerOperator`` task pre-configured for the Spark image.
 
@@ -84,7 +97,8 @@ def make_skill_radar_task(
         Stable, human-readable Airflow task identifier.
     command:
         Shell command to run inside the container.  Typically a
-        ``uv run skill-radar …`` CLI invocation.
+        ``skill-radar run <stage-unit>`` CLI invocation that bundles
+        processing + validation in one Spark session.
     dag:
         The parent DAG instance.
     extra_env:
@@ -94,6 +108,11 @@ def make_skill_radar_task(
         Optional ``TaskGroup`` to assign the task to.
     retries:
         Override the default retry count for this task.
+    pool:
+        Airflow pool name.  Defaults to ``SPARK_POOL`` from config so
+        that Spark container concurrency is bounded globally.
+    priority_weight:
+        Override the default priority weight for pool scheduling.
 
     Returns
     -------
@@ -123,6 +142,8 @@ def make_skill_radar_task(
         "tty": False,
         "do_xcom_push": False,
         "dag": dag,
+        "pool": pool or SPARK_POOL,
+        "priority_weight": priority_weight or DEFAULT_PRIORITY_WEIGHT,
     }
 
     if retries is not None:
@@ -130,5 +151,9 @@ def make_skill_radar_task(
 
     if task_group is not None:
         kwargs["task_group"] = task_group
+
+    # Optional platform override (e.g. linux/amd64 on Apple Silicon).
+    if DOCKER_PLATFORM:
+        kwargs["platform"] = DOCKER_PLATFORM
 
     return DockerOperator(**kwargs)

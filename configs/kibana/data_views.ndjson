@@ -1,0 +1,5 @@
+{"type": "index-pattern", "attributes": {"title": "skillradar-skill-demand-daily-*", "timeFieldName": "ingestion_date", "name": "Skill Radar — Skill Demand Daily"}}
+{"type": "index-pattern", "attributes": {"title": "skillradar-salary-by-skill-daily-*", "timeFieldName": "ingestion_date", "name": "Skill Radar — Salary by Skill Daily"}}
+{"type": "index-pattern", "attributes": {"title": "skillradar-occupation-skill-graph-*", "timeFieldName": "ingestion_date", "name": "Skill Radar — Occupation-Skill Graph"}}
+{"type": "index-pattern", "attributes": {"title": "skillradar-job-skill-matches-*", "timeFieldName": "ingestion_date", "name": "Skill Radar — Job-Skill Matches"}}
+{"type": "index-pattern", "attributes": {"title": "skillradar-job-occupation-matches-*", "timeFieldName": "ingestion_date", "name": "Skill Radar — Job-Occupation Matches"}}

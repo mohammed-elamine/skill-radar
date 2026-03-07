@@ -1,9 +1,10 @@
 """ESCO Manual Pipeline DAG.
 
-Orchestrates ESCO processing after a manual artifact upload:
+Orchestrates ESCO processing after a manual artifact upload using
+**coarse stage units** — each task bundles processing + validation
+in a single Spark session:
 
-    validate_landing → bronze → validate_bronze → silver → validate_silver
-    └── (optional) → gold_pipeline → validate_gold
+    esco_bronze_unit → esco_silver_unit [→ gold_unit]
 
 Trigger mode
 ------------
@@ -22,7 +23,8 @@ run_gold_after : bool (default from config, typically ``false``)
     target date.  Disabled by default for safety — enable explicitly
     when you are sure Adzuna data is available.
 validate_landing_first : bool (default ``true``)
-    Whether to run landing validation before Bronze.
+    Whether to run landing validation before Bronze extraction.
+    Passed as ``--validate-landing`` to the bronze stage unit.
 
 Design decision — Gold recompute
 ---------------------------------
@@ -37,13 +39,12 @@ ESCO DAG because:
 Enable ``run_gold_after=true`` only when you explicitly want to
 recompute Gold against the latest available Adzuna partition.
 
-Future enhancement
-------------------
-A landing-manifest sensor DAG could automatically detect new validated
-ESCO artifacts in MinIO/S3 and trigger this DAG with resolved
-``version``/``lang`` parameters.  See ``docs/airflow_orchestration_guide.md``
-for the design sketch.  This is intentionally **not implemented** in the
-current phase to avoid brittle state handling.
+Design decision — coarse stage units
+--------------------------------------
+The previous version spawned 8 separate containers (one per step +
+validation).  This version reduces it to 2-3 by grouping each
+processing step with its validation inside a ``skill-radar run``
+command that shares a single Spark session.
 """
 
 from __future__ import annotations
@@ -70,7 +71,8 @@ _DOC_MD = """\
 ### ESCO Manual Pipeline
 
 Processes an ESCO taxonomy artifact through Landing → Bronze → Silver
-with optional Gold recompute.
+with optional Gold recompute.  Uses **coarse stage units** — each task
+bundles processing + validation in a single Spark session.
 
 #### Required parameters
 
@@ -84,8 +86,14 @@ with optional Gold recompute.
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `run_gold_after` | bool | `false` | Trigger Gold recompute after Silver |
-| `validate_landing_first` | bool | `true` | Run landing validation |
+| `validate_landing_first` | bool | `true` | Run landing validation before Bronze |
 | `gold_ingestion_date` | str | *(today)* | Adzuna date for Gold recompute |
+
+#### Task flow (coarse stage units)
+
+1. **esco_bronze_unit** — [landing validation +] Bronze extraction + Bronze validation
+2. **esco_silver_unit** — Silver formatting + Silver validation
+3. **gold_unit** — matching + analytics + Gold validation (if enabled)
 
 #### Trigger example (Airflow CLI)
 
@@ -107,7 +115,7 @@ Only enable `run_gold_after` when Adzuna data is available.
 
 with DAG(
     dag_id="esco_manual_pipeline",
-    description="Manual ESCO ingestion: Landing → Bronze → Silver (+ optional Gold).",
+    description="Manual ESCO ingestion: Bronze → Silver (coarse stage units, + optional Gold).",
     doc_md=_DOC_MD,
     schedule=None,
     start_date=datetime(2025, 1, 1),
@@ -154,81 +162,56 @@ with DAG(
     # Jinja expressions for param access
     _VERSION = "{{ params.version }}"
     _LANG = "{{ params.lang }}"
-    # For gold_ingestion_date: use param if non-empty, else fall back to ds
     _GOLD_DATE = "{{ params.gold_ingestion_date if params.gold_ingestion_date else ds }}"
 
-    # ── Landing validation ──────────────────────────────────────────────
-    validate_esco_landing = make_skill_radar_task(
-        task_id="validate_esco_landing",
-        command=(f"skill-radar validate esco-landing --version {_VERSION} --lang {_LANG}"),
-        dag=dag,
+    # Compute --validate-landing / --no-validate-landing flag via Jinja
+    _VALIDATE_LANDING_FLAG = (
+        "{{ '--validate-landing' if params.validate_landing_first else '--no-validate-landing' }}"
     )
 
-    # ── Bronze ──────────────────────────────────────────────────────────
-    esco_bronze = make_skill_radar_task(
-        task_id="esco_bronze",
-        command=(f"skill-radar esco bronze --version {_VERSION} --lang {_LANG}"),
-        dag=dag,
-    )
-
-    validate_esco_bronze = make_skill_radar_task(
-        task_id="validate_esco_bronze",
-        command=(f"skill-radar validate esco-bronze --version {_VERSION} --lang {_LANG}"),
-        dag=dag,
-    )
-
-    # ── Silver ──────────────────────────────────────────────────────────
-    esco_silver = make_skill_radar_task(
-        task_id="esco_silver",
-        command=(f"skill-radar esco silver --version {_VERSION} --lang {_LANG}"),
-        dag=dag,
-    )
-
-    validate_esco_silver = make_skill_radar_task(
-        task_id="validate_esco_silver",
-        command=(f"skill-radar validate esco-silver --version {_VERSION} --lang {_LANG}"),
-        dag=dag,
-    )
-
-    # ── Gold (conditional) ──────────────────────────────────────────────
-    gold_pipeline = make_skill_radar_task(
-        task_id="gold_pipeline",
+    # ── Bronze unit (landing validation + extraction + bronze validation)
+    esco_bronze_unit = make_skill_radar_task(
+        task_id="esco_bronze_unit",
         command=(
-            f"skill-radar gold pipeline"
+            f"skill-radar run esco-bronze"
+            f" --version {_VERSION}"
+            f" --lang {_LANG}"
+            f" {_VALIDATE_LANDING_FLAG}"
+            f" --upload --quiet"
+        ),
+        dag=dag,
+        priority_weight=3,
+    )
+
+    # ── Silver unit (formatting + silver validation) ────────────────────
+    esco_silver_unit = make_skill_radar_task(
+        task_id="esco_silver_unit",
+        command=(
+            f"skill-radar run esco-silver --version {_VERSION} --lang {_LANG} --upload --quiet"
+        ),
+        dag=dag,
+        priority_weight=2,
+    )
+
+    # ── Gold unit (conditional — matching + analytics + validation) ─────
+    gold_unit = make_skill_radar_task(
+        task_id="gold_unit",
+        command=(
+            f"skill-radar run gold"
             f" --ingestion-date {_GOLD_DATE}"
             f" --country {ADZUNA_COUNTRY}"
             f" --esco-version {_VERSION}"
             f" --esco-lang {_LANG}"
+            f" --upload --quiet"
         ),
         dag=dag,
-    )
-
-    validate_gold = make_skill_radar_task(
-        task_id="validate_gold",
-        command=(
-            f"skill-radar validate gold"
-            f" --ingestion-date {_GOLD_DATE}"
-            f" --country {ADZUNA_COUNTRY}"
-            f" --esco-version {_VERSION}"
-            f" --esco-lang {_LANG}"
-        ),
-        dag=dag,
+        priority_weight=1,
     )
 
     # ── Dependencies ────────────────────────────────────────────────────
-    # Core flow: landing validate → bronze → validate → silver → validate
-    (
-        validate_esco_landing
-        >> esco_bronze
-        >> validate_esco_bronze
-        >> esco_silver
-        >> validate_esco_silver
-    )
+    esco_bronze_unit >> esco_silver_unit
 
     # Conditional gold: only runs when run_gold_after=true
-    # Note: Airflow evaluates trigger rules. We use the trigger_rule
-    # approach with a BranchPythonOperator-like pattern. For simplicity
-    # and readability, we use the ShortCircuitOperator approach.
     from airflow.operators.python import ShortCircuitOperator
 
     should_run_gold = ShortCircuitOperator(
@@ -238,4 +221,4 @@ with DAG(
         dag=dag,
     )
 
-    validate_esco_silver >> should_run_gold >> gold_pipeline >> validate_gold
+    esco_silver_unit >> should_run_gold >> gold_unit

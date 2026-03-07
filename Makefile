@@ -488,6 +488,87 @@ run-gold: ## Full Gold pipeline: matching → analytics → validate
 	$(SILENT)bash -lc '$(call UI_OK,Gold pipeline complete.)'
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Search (Elasticsearch + Kibana) Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Requires:
+#   - Gold tables populated (make run-gold ...)
+#   - Elasticsearch + Kibana running (make search-up)
+#
+# Usage:
+#   make search-up                        # start ES + Kibana
+#   make search-down                      # stop ES + Kibana
+#   make search-reset                     # stop + remove volumes
+#   make search-logs                      # tail ES + Kibana logs
+#   make validate-search-infra            # check ES/Kibana reachable
+#   make export-search   SEARCH_COUNTRY=fr SEARCH_INGESTION_DATE=2025-01-15
+#   make validate-search SEARCH_COUNTRY=fr SEARCH_INGESTION_DATE=2025-01-15
+#   make bootstrap-kibana                 # create data views in Kibana
+#   make run-search      SEARCH_COUNTRY=fr SEARCH_INGESTION_DATE=2025-01-15
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dynamic overrides for Search pipeline
+SEARCH_COUNTRY           ?= fr
+SEARCH_INGESTION_DATE    ?=
+SEARCH_DATASET           ?=
+SEARCH_ES_URL            ?=
+SEARCH_KIBANA_URL        ?=
+# Default URLs for Docker vs Host contexts
+SEARCH_ES_URL_DOCKER     ?= http://elasticsearch:9200
+SEARCH_ES_URL_HOST       ?= http://localhost:9200
+SEARCH_KIBANA_URL_DOCKER ?= http://kibana:5601
+SEARCH_KIBANA_URL_HOST   ?= http://localhost:5601
+
+SEARCH_COMPOSE = docker compose --profile search
+
+# Helper: build optional Search CLI flags
+_SEARCH_DATE_FLAG    = $(if $(SEARCH_INGESTION_DATE),--ingestion-date $(SEARCH_INGESTION_DATE),)
+_SEARCH_DATASET_FLAG = $(if $(SEARCH_DATASET),--dataset $(SEARCH_DATASET),)
+# For host-side targets: use SEARCH_ES_URL if set, else host default
+_SEARCH_ES_URL_FLAG_HOST   = --es-url $(if $(SEARCH_ES_URL),$(SEARCH_ES_URL),$(SEARCH_ES_URL_HOST))
+_SEARCH_KIBANA_URL_FLAG_HOST = --kibana-url $(if $(SEARCH_KIBANA_URL),$(SEARCH_KIBANA_URL),$(SEARCH_KIBANA_URL_HOST))
+# For Docker-side targets (via SPARK_EXEC): use SEARCH_ES_URL if set, else Docker default
+_SEARCH_ES_URL_FLAG_DOCKER = --es-url $(if $(SEARCH_ES_URL),$(SEARCH_ES_URL),$(SEARCH_ES_URL_DOCKER))
+_SEARCH_KIBANA_URL_FLAG_DOCKER = --kibana-url $(if $(SEARCH_KIBANA_URL),$(SEARCH_KIBANA_URL),$(SEARCH_KIBANA_URL_DOCKER))
+
+.PHONY: search-up search-down search-reset search-logs validate-search-infra export-search validate-search bootstrap-kibana run-search
+
+search-up: ## Start Elasticsearch + Kibana (search profile)
+	$(call RUN_STEP,Start search stack (ES + Kibana),,$(SEARCH_COMPOSE) up -d)
+	$(SILENT)bash -lc '$(call UI_OK,Search stack running: ES=http://localhost:$${ES_PORT:-9200} Kibana=http://localhost:$${KIBANA_PORT:-5601})'
+
+search-down: ## Stop Elasticsearch + Kibana
+	$(call RUN_STEP,Stop search stack,,$(SEARCH_COMPOSE) down)
+
+search-reset: ## Stop search stack and remove data volumes
+	$(call RUN_STEP,Reset search stack,,$(SEARCH_COMPOSE) down -v)
+
+search-logs: ## Tail Elasticsearch + Kibana logs (Ctrl+C to stop)
+	@echo "Tailing search logs (Ctrl+C to stop)..."
+	@$(SEARCH_COMPOSE) logs -f --tail=200 elasticsearch kibana
+
+validate-search-infra: ## Validate ES + Kibana reachable (host-based)
+	$(call RUN_STEP_HOST,Validate search infra,,\
+	uv run skill-radar validate search --ingestion-date 1970-01-01 --country _none --infra-only $(_SEARCH_ES_URL_FLAG_HOST) $(_SEARCH_KIBANA_URL_FLAG_HOST) $(EXTRA))
+
+export-search: ## Export Gold data to Elasticsearch: SEARCH_COUNTRY=... SEARCH_INGESTION_DATE=...
+	$(call RUN_STEP,Export to Elasticsearch (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar search export $(_SEARCH_DATE_FLAG) --country $(SEARCH_COUNTRY) $(_SEARCH_DATASET_FLAG) $(_SEARCH_ES_URL_FLAG_DOCKER) --alias-swap --refresh $(EXTRA)")
+
+validate-search: ## Validate Elasticsearch indices: SEARCH_COUNTRY=... SEARCH_INGESTION_DATE=...
+	$(call RUN_STEP,Validate search indices (via Spark),,\
+	$(SPARK_EXEC) "uv run skill-radar validate search $(_SEARCH_DATE_FLAG) --country $(SEARCH_COUNTRY) $(_SEARCH_DATASET_FLAG) $(_SEARCH_ES_URL_FLAG_DOCKER) $(_SEARCH_KIBANA_URL_FLAG_DOCKER) $(EXTRA)")
+
+bootstrap-kibana: ## Create Kibana data views + dashboards
+	$(call RUN_STEP_HOST,Bootstrap Kibana data views,,\
+	uv run skill-radar search bootstrap-kibana $(_SEARCH_KIBANA_URL_FLAG_HOST) $(EXTRA))
+
+run-search: ## Full search pipeline: export → validate → kibana bootstrap
+	$(SILENT)$(MAKE) export-search SEARCH_COUNTRY=$(SEARCH_COUNTRY) SEARCH_INGESTION_DATE=$(SEARCH_INGESTION_DATE) SEARCH_DATASET=$(SEARCH_DATASET) SEARCH_ES_URL=$(SEARCH_ES_URL) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) validate-search SEARCH_COUNTRY=$(SEARCH_COUNTRY) SEARCH_INGESTION_DATE=$(SEARCH_INGESTION_DATE) SEARCH_DATASET=$(SEARCH_DATASET) SEARCH_ES_URL=$(SEARCH_ES_URL) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) bootstrap-kibana SEARCH_KIBANA_URL=$(SEARCH_KIBANA_URL) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)bash -lc '$(call UI_OK,Search pipeline complete.)'
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Airflow Orchestration
 # ─────────────────────────────────────────────────────────────────────────────
 # Airflow runs as a Docker Compose profile.  The scheduler uses
@@ -538,7 +619,7 @@ airflow-dags-list: ## List DAGs discovered by Airflow
 
 airflow-trigger-adzuna: ## Trigger Adzuna daily DAG for a given date (AIRFLOW_ADZUNA_DATE=...)
 	$(call RUN_STEP,Trigger adzuna_daily_pipeline ($(AIRFLOW_ADZUNA_DATE)),,\
-	$(AIRFLOW_EXEC) airflow dags trigger adzuna_daily_pipeline --exec-date $(AIRFLOW_ADZUNA_DATE))
+	$(AIRFLOW_EXEC) airflow dags trigger adzuna_daily_pipeline -e $(AIRFLOW_ADZUNA_DATE))
 
 airflow-trigger-esco: ## Trigger ESCO manual DAG (AIRFLOW_ESCO_VERSION=... AIRFLOW_ESCO_LANG=... AIRFLOW_ESCO_RUN_GOLD=...)
 	@printf "$(C_BLUE)▶$(C_RESET) %s\n" "Trigger esco_manual_pipeline ($(AIRFLOW_ESCO_VERSION)/$(AIRFLOW_ESCO_LANG))"

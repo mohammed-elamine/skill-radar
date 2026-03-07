@@ -47,6 +47,30 @@ adzuna:
   backoff_seconds: 2
   default_preset: default_fr
 
+search:
+  enabled: true
+  elasticsearch_url: http://localhost:9200
+  elasticsearch_url_docker: http://elasticsearch:9200
+  kibana_url: http://localhost:5601
+  kibana_url_docker: http://kibana:5601
+  index_prefix: skillradar
+  index_replicas: 0
+  index_shards: 1
+  request_timeout_seconds: 30
+  bulk_chunk_size: 500
+  bulk_max_retries: 3
+  bulk_retry_backoff_seconds: 2
+  country_default: fr
+  dashboard_bootstrap_enabled: false
+  create_index_if_missing: true
+  use_tls: false
+  indices:
+    skill_demand_daily: skill-demand-daily
+    salary_by_skill_daily: salary-by-skill-daily
+    occupation_skill_graph: occupation-skill-graph
+    job_skill_matches: job-skill-matches
+    job_occupation_matches: job-occupation-matches
+
 validation:
   esco:
     silver:
