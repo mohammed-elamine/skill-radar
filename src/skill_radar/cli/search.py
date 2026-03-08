@@ -3,6 +3,8 @@
 Provides thin entrypoints for:
 - skill-radar search export           (Gold → Elasticsearch)
 - skill-radar search bootstrap-kibana (create data views / saved objects)
+- skill-radar search dashboard export (generate NDJSON artifact)
+- skill-radar search dashboard apply  (push dashboards to Kibana)
 """
 
 from __future__ import annotations
@@ -229,6 +231,168 @@ def bootstrap_kibana_cmd(
 
     except Exception as exc:
         logger.exception("Kibana bootstrap failed")
+        click.echo(f"\n  Fatal error: {exc}")
+        finalize_logging()
+        sys.exit(EXIT_SEARCH_ERROR)
+
+
+# ---------------------------------------------------------------------------
+# search dashboard  (subgroup)
+# ---------------------------------------------------------------------------
+
+
+@search_group.group("dashboard")
+def dashboard_group() -> None:
+    """Kibana dashboard management (generate / apply)."""
+
+
+@dashboard_group.command("export")
+@click.option(
+    "--output-dir",
+    "output_dir",
+    default=None,
+    type=click.Path(),
+    help="Output directory for NDJSON artifact (default: configs/kibana).",
+)
+@click.option(
+    "--filename",
+    default="skill_radar_dashboards.ndjson",
+    help="Output filename.",
+)
+@click.option("--quiet", is_flag=True, default=False, help="Suppress normal output.")
+def dashboard_export_cmd(
+    output_dir: str | None,
+    filename: str,
+    quiet: bool,
+) -> None:
+    """Generate Kibana dashboard NDJSON artifact.
+
+    Produces a deterministic NDJSON file containing all data views,
+    visualizations, dashboards, and saved searches.  The file can be
+    imported via the Kibana UI or the ``apply`` command.
+
+    \b
+    Examples:
+        skill-radar search dashboard export
+        skill-radar search dashboard export --output-dir ./artifacts
+    """
+    from pathlib import Path
+
+    from skill_radar.config.loader import load_platform_config
+    from skill_radar.domains.search.kibana_orchestrator import generate_kibana_assets
+
+    init_logging("kibana_dashboard_export", enable_file=True)
+    config = load_platform_config()
+
+    try:
+        out = Path(output_dir) if output_dir else None
+        result = generate_kibana_assets(config, output_dir=out, filename=filename)
+
+        if not quiet:
+            click.echo("")
+            click.echo("  Kibana dashboard NDJSON exported:")
+            click.echo(f"    Data views     : {result.data_views_count}")
+            click.echo(f"    Visualizations : {result.visualizations_count}")
+            click.echo(f"    Dashboards     : {result.dashboards_count}")
+            click.echo(f"    Saved searches : {result.saved_searches_count}")
+            click.echo(f"    Total objects  : {result.total_objects}")
+            click.echo(f"    Artifact       : {result.artifact_path}")
+            click.echo("")
+
+        finalize_logging()
+        sys.exit(EXIT_SUCCESS)
+
+    except Exception as exc:
+        logger.exception("Dashboard export failed")
+        click.echo(f"\n  Fatal error: {exc}")
+        finalize_logging()
+        sys.exit(EXIT_SEARCH_ERROR)
+
+
+@dashboard_group.command("apply")
+@click.option("--kibana-url", "kibana_url", default=None, help="Kibana URL override.")
+@click.option(
+    "--overwrite/--no-overwrite",
+    default=True,
+    help="Overwrite existing saved objects.",
+)
+@click.option("--dry-run", is_flag=True, default=False, help="Generate only, don't push.")
+@click.option(
+    "--output-file",
+    "output_dir",
+    default=None,
+    type=click.Path(),
+    help="Also write NDJSON artifact to this directory.",
+)
+@click.option("--quiet", is_flag=True, default=False, help="Suppress normal output.")
+def dashboard_apply_cmd(
+    kibana_url: str | None,
+    overwrite: bool,
+    dry_run: bool,
+    output_dir: str | None,
+    quiet: bool,
+) -> None:
+    """Generate and apply Kibana dashboards.
+
+    Builds all dashboard assets from code and pushes them to Kibana
+    via the saved objects import API.  Supports idempotent overwrite
+    semantics and a dry-run mode for validation.
+
+    \b
+    Examples:
+        skill-radar search dashboard apply
+        skill-radar search dashboard apply --dry-run
+        skill-radar search dashboard apply --kibana-url http://kibana:5601
+        skill-radar search dashboard apply --no-overwrite
+    """
+    from pathlib import Path
+
+    from skill_radar.config.loader import load_platform_config
+    from skill_radar.domains.search.kibana_orchestrator import apply_kibana_assets
+
+    init_logging("kibana_dashboard_apply", enable_file=True)
+    config = load_platform_config()
+
+    try:
+        out = Path(output_dir) if output_dir else None
+        result = apply_kibana_assets(
+            config,
+            kibana_url=kibana_url,
+            overwrite=overwrite,
+            dry_run=dry_run,
+            output_dir=out,
+        )
+
+        if not quiet:
+            click.echo("")
+            mode = "DRY RUN" if dry_run else "APPLY"
+            click.echo(f"  Kibana dashboard {mode}:")
+            click.echo(f"    Data views     : {result.data_views_count}")
+            click.echo(f"    Visualizations : {result.visualizations_count}")
+            click.echo(f"    Dashboards     : {result.dashboards_count}")
+            click.echo(f"    Saved searches : {result.saved_searches_count}")
+            click.echo(f"    Total objects  : {result.total_objects}")
+            if result.artifact_path:
+                click.echo(f"    Artifact       : {result.artifact_path}")
+            if result.applied:
+                click.echo("    Status         : ✓ Applied to Kibana")
+            elif dry_run:
+                click.echo("    Status         : — Dry run (not applied)")
+            if result.errors:
+                click.echo(f"    Errors         : {len(result.errors)}")
+                for err in result.errors[:5]:
+                    click.echo(f"      • {err}")
+            click.echo("")
+
+        if result.errors:
+            finalize_logging()
+            sys.exit(EXIT_SEARCH_ERROR)
+
+        finalize_logging()
+        sys.exit(EXIT_SUCCESS)
+
+    except Exception as exc:
+        logger.exception("Dashboard apply failed")
         click.echo(f"\n  Fatal error: {exc}")
         finalize_logging()
         sys.exit(EXIT_SEARCH_ERROR)
