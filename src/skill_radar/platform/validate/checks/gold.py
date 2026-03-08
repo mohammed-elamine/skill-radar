@@ -1,4 +1,4 @@
-"""Gold-layer validation checks for all 5 Gold Iceberg tables.
+"""Gold-layer validation checks for all 8 Gold Iceberg tables.
 
 Reuses generic lakehouse checks from
 :mod:`skill_radar.platform.validate.checks.lakehouse` and adds
@@ -38,6 +38,9 @@ OCCUPATION_MATCHES_REQUIRED = gold_schema.OCCUPATION_MATCHES_REQUIRED
 SKILL_DEMAND_DAILY_REQUIRED = gold_schema.SKILL_DEMAND_DAILY_REQUIRED
 SALARY_BY_SKILL_DAILY_REQUIRED = gold_schema.SALARY_BY_SKILL_DAILY_REQUIRED
 OCCUPATION_SKILL_GRAPH_REQUIRED = gold_schema.OCCUPATION_SKILL_GRAPH_REQUIRED
+SKILL_EMERGING_DAILY_REQUIRED = gold_schema.SKILL_EMERGING_DAILY_REQUIRED
+OCCUPATION_MARKET_DAILY_REQUIRED = gold_schema.OCCUPATION_MARKET_DAILY_REQUIRED
+SKILL_DEMAND_SEGMENTS_DAILY_REQUIRED = gold_schema.SKILL_DEMAND_SEGMENTS_DAILY_REQUIRED
 
 # Lineage columns common to all Gold tables
 _GOLD_LINEAGE_COLS = gold_schema.GOLD_LINEAGE_COLS
@@ -272,7 +275,7 @@ def get_gold_checks(
     esco_version: str,  # noqa: ARG001
     esco_lang: str,  # noqa: ARG001
 ) -> list[NamedCheck]:
-    """Build the list of Gold validation checks for all 5 tables.
+    """Build the list of Gold validation checks for all 8 tables.
 
     Parameters
     ----------
@@ -297,6 +300,9 @@ def get_gold_checks(
     demand_fqn = layout.gold_skill_demand_daily_fqn()
     salary_fqn = layout.gold_salary_by_skill_daily_fqn()
     graph_fqn = layout.gold_occupation_skill_graph_fqn()
+    emerging_fqn = layout.gold_skill_emerging_daily_fqn()
+    market_fqn = layout.gold_occupation_market_daily_fqn()
+    segments_fqn = layout.gold_skill_demand_segments_daily_fqn()
 
     checks: list[NamedCheck] = []
 
@@ -575,6 +581,185 @@ def get_gold_checks(
                 name="gold.graph.lineage",
                 description="Gold lineage columns present",
                 fn=lambda: _check_lineage_present(spark, graph_fqn),
+            ),
+        ]
+    )
+
+    # ── gold_skill_emerging_daily ──
+    checks.extend(
+        [
+            NamedCheck(
+                name="gold.emerging.table_exists",
+                description=f"Table {emerging_fqn} exists",
+                fn=lambda: check_table_exists(spark, emerging_fqn),
+            ),
+            NamedCheck(
+                name="gold.emerging.non_empty",
+                description=f"Table {emerging_fqn} is non-empty",
+                fn=lambda: check_table_non_empty(spark, emerging_fqn),
+            ),
+            NamedCheck(
+                name="gold.emerging.schema",
+                description="gold_skill_emerging_daily has required columns",
+                fn=lambda: check_table_schema_contains(
+                    spark, emerging_fqn, SKILL_EMERGING_DAILY_REQUIRED
+                ),
+            ),
+            NamedCheck(
+                name="gold.emerging.partition_non_empty",
+                description=f"emerging partition ({ingestion_date}, {country}) non-empty",
+                fn=lambda: _check_partition_non_empty(
+                    spark,
+                    emerging_fqn,
+                    ingestion_date=ingestion_date,
+                    country=country,
+                ),
+            ),
+            *[
+                NamedCheck(
+                    name=f"gold.emerging.score_range_{col}",
+                    description=f"{col} in [0, 1]",
+                    fn=(lambda _c: lambda: _check_score_range(spark, emerging_fqn, _c))(col),
+                )
+                for col in gold_schema.EMERGING_SCORE_COLS
+            ],
+            NamedCheck(
+                name="gold.emerging.positive_counts",
+                description="Count columns non-negative",
+                fn=lambda: _check_positive_counts(
+                    spark,
+                    emerging_fqn,
+                    gold_schema.EMERGING_COUNT_COLS,
+                ),
+            ),
+            NamedCheck(
+                name="gold.emerging.no_duplicates",
+                description=f"No duplicate ({', '.join(gold_schema.SKILL_EMERGING_KEY)})",
+                fn=lambda: _check_no_duplicate_keys(
+                    spark,
+                    emerging_fqn,
+                    gold_schema.SKILL_EMERGING_KEY,
+                    "no_duplicates",
+                ),
+            ),
+            NamedCheck(
+                name="gold.emerging.lineage",
+                description="Gold lineage columns present",
+                fn=lambda: _check_lineage_present(spark, emerging_fqn),
+            ),
+        ]
+    )
+
+    # ── gold_occupation_market_daily ──
+    checks.extend(
+        [
+            NamedCheck(
+                name="gold.market.table_exists",
+                description=f"Table {market_fqn} exists",
+                fn=lambda: check_table_exists(spark, market_fqn),
+            ),
+            NamedCheck(
+                name="gold.market.non_empty",
+                description=f"Table {market_fqn} is non-empty",
+                fn=lambda: check_table_non_empty(spark, market_fqn),
+            ),
+            NamedCheck(
+                name="gold.market.schema",
+                description="gold_occupation_market_daily has required columns",
+                fn=lambda: check_table_schema_contains(
+                    spark, market_fqn, OCCUPATION_MARKET_DAILY_REQUIRED
+                ),
+            ),
+            NamedCheck(
+                name="gold.market.partition_non_empty",
+                description=f"market partition ({ingestion_date}, {country}) non-empty",
+                fn=lambda: _check_partition_non_empty(
+                    spark,
+                    market_fqn,
+                    ingestion_date=ingestion_date,
+                    country=country,
+                ),
+            ),
+            NamedCheck(
+                name="gold.market.positive_counts",
+                description="Count columns non-negative",
+                fn=lambda: _check_positive_counts(
+                    spark,
+                    market_fqn,
+                    gold_schema.OCCUPATION_MARKET_COUNT_COLS,
+                ),
+            ),
+            NamedCheck(
+                name="gold.market.no_duplicates",
+                description=f"No duplicate ({', '.join(gold_schema.OCCUPATION_MARKET_KEY)})",
+                fn=lambda: _check_no_duplicate_keys(
+                    spark,
+                    market_fqn,
+                    gold_schema.OCCUPATION_MARKET_KEY,
+                    "no_duplicates",
+                ),
+            ),
+            NamedCheck(
+                name="gold.market.lineage",
+                description="Gold lineage columns present",
+                fn=lambda: _check_lineage_present(spark, market_fqn),
+            ),
+        ]
+    )
+
+    # ── gold_skill_demand_segments_daily ──
+    checks.extend(
+        [
+            NamedCheck(
+                name="gold.segments.table_exists",
+                description=f"Table {segments_fqn} exists",
+                fn=lambda: check_table_exists(spark, segments_fqn),
+            ),
+            NamedCheck(
+                name="gold.segments.non_empty",
+                description=f"Table {segments_fqn} is non-empty",
+                fn=lambda: check_table_non_empty(spark, segments_fqn),
+            ),
+            NamedCheck(
+                name="gold.segments.schema",
+                description="gold_skill_demand_segments_daily has required columns",
+                fn=lambda: check_table_schema_contains(
+                    spark, segments_fqn, SKILL_DEMAND_SEGMENTS_DAILY_REQUIRED
+                ),
+            ),
+            NamedCheck(
+                name="gold.segments.partition_non_empty",
+                description=f"segments partition ({ingestion_date}, {country}) non-empty",
+                fn=lambda: _check_partition_non_empty(
+                    spark,
+                    segments_fqn,
+                    ingestion_date=ingestion_date,
+                    country=country,
+                ),
+            ),
+            NamedCheck(
+                name="gold.segments.positive_counts",
+                description="Count columns non-negative",
+                fn=lambda: _check_positive_counts(
+                    spark,
+                    segments_fqn,
+                    gold_schema.SEGMENTS_COUNT_COLS,
+                ),
+            ),
+            NamedCheck(
+                name="gold.segments.no_duplicates",
+                description=f"No duplicate ({', '.join(gold_schema.SKILL_DEMAND_SEGMENTS_KEY)})",
+                fn=lambda: _check_no_duplicate_keys(
+                    spark,
+                    segments_fqn,
+                    gold_schema.SKILL_DEMAND_SEGMENTS_KEY,
+                    "no_duplicates",
+                ),
+            ),
+            NamedCheck(
+                name="gold.segments.lineage",
+                description="Gold lineage columns present",
+                fn=lambda: _check_lineage_present(spark, segments_fqn),
             ),
         ]
     )

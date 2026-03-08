@@ -1205,12 +1205,14 @@ def run_esco_silver(
 )
 @click.option("--country", required=True, help="Country code (e.g. fr).")
 @click.option("--es-url", "es_url", default=None, help="Elasticsearch URL override.")
+@click.option("--kibana-url", "kibana_url", default=None, help="Kibana URL override.")
 @click.option("--upload", is_flag=True, default=False, help="Upload reports to S3 logs bucket")
 @click.option("--quiet", is_flag=True, default=False, help="Suppress console output")
 def run_search_cmd(
     ingestion_date: str,
     country: str,
     es_url: str | None,
+    kibana_url: str | None,
     upload: bool,
     quiet: bool,
 ) -> None:
@@ -1258,6 +1260,13 @@ def run_search_cmd(
 
         from skill_radar.cli.search import PRIMARY_DATASETS
 
+        # Core datasets must always succeed; enrichment datasets soft-fail
+        _CORE_DATASETS = [
+            "skill_demand_daily",
+            "salary_by_skill_daily",
+            "occupation_skill_graph",
+        ]
+
         export_result = run_search_export(
             spark,
             ingestion_date=ingestion_date,
@@ -1274,21 +1283,57 @@ def run_search_cmd(
 
         from skill_radar.platform.validate.models import create_check
 
-        export_check = create_check(
-            name="run.search.export",
-            description="Search export to Elasticsearch",
-            passed=export_result.success,
-            detail=(
-                f"{export_result.datasets_exported} datasets exported"
-                if export_result.success
-                else (export_result.error or "Unknown error")
-            ),
+        # Check if any *core* dataset failed (fatal)
+        core_failed = any(
+            ds_name in export_result.results and not export_result.results[ds_name].success
+            for ds_name in _CORE_DATASETS
         )
+        # Check if only enrichment datasets failed (non-fatal)
+        enrichment_failed = [
+            ds_name
+            for ds_name in PRIMARY_DATASETS
+            if ds_name not in _CORE_DATASETS
+            and ds_name in export_result.results
+            and not export_result.results[ds_name].success
+        ]
+        # Also catch datasets that failed to even start (exception path)
+        enrichment_missing = [
+            ds_name
+            for ds_name in PRIMARY_DATASETS
+            if ds_name not in _CORE_DATASETS and ds_name not in export_result.datasets_exported
+        ]
+
+        if core_failed:
+            export_check = create_check(
+                name="run.search.export",
+                description="Search export to Elasticsearch",
+                passed=False,
+                detail=export_result.error or "Core dataset export failed",
+            )
+        elif enrichment_failed or enrichment_missing:
+            warn_datasets = enrichment_failed + enrichment_missing
+            export_check = create_check(
+                name="run.search.export",
+                description="Search export to Elasticsearch",
+                passed=True,
+                warn=True,
+                warn_reason=(
+                    f"{export_result.datasets_exported} datasets exported"
+                    f" (enrichment soft-fail: {warn_datasets})"
+                ),
+            )
+        else:
+            export_check = create_check(
+                name="run.search.export",
+                description="Search export to Elasticsearch",
+                passed=True,
+                detail=f"{export_result.datasets_exported} datasets exported",
+            )
         all_results.append(export_check)
         if not quiet:
             print_check_result(export_check)
 
-        if not export_result.success:
+        if core_failed:
             report = ValidationReport(
                 validator_name="run_search",
                 env=config.platform.environment,
@@ -1317,11 +1362,26 @@ def run_search_cmd(
             config,
             ingestion_date=ingestion_date,
             country=country,
+            datasets=export_result.datasets_exported or None,
             es_url=es_url,
+            kibana_url=kibana_url,
         )
 
         for named_check in search_checks:
             result = named_check.fn()
+            # Kibana asset checks (data views, dashboards) are non-blocking
+            # in the pipeline context — they're applied separately via
+            # `search dashboard apply`.  Downgrade from FAIL → WARN.
+            if result.status == CheckStatus.FAIL and result.name.startswith(
+                ("search.kibana.dv.", "search.kibana.dash.")
+            ):
+                result = create_check(
+                    name=result.name,
+                    description=result.description,
+                    passed=True,
+                    warn=True,
+                    warn_reason=f"{result.detail} (non-blocking in pipeline)",
+                )
             all_results.append(result)
             if not quiet:
                 print_check_result(result)

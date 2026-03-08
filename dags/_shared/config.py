@@ -131,6 +131,7 @@ SEARCH_ENABLED: bool = _env_bool("SKILLRADAR_SEARCH_ENABLED", True)
 SEARCH_ES_URL_DOCKER: str = _env(
     "SKILLRADAR_SEARCH_ELASTICSEARCH_URL_DOCKER", "http://elasticsearch:9200"
 )
+SEARCH_KIBANA_URL_DOCKER: str = _env("SKILLRADAR_SEARCH_KIBANA_URL_DOCKER", "http://kibana:5601")
 
 # ---------------------------------------------------------------------------
 # Task execution defaults

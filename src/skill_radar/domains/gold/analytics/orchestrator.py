@@ -4,6 +4,14 @@ Reads Gold matching outputs and Adzuna Silver jobs to compute:
 1. Daily skill demand KPIs.
 2. Daily salary-by-skill KPIs.
 3. Occupation-skill graph with market evidence.
+4. Emerging-skill signals (momentum / acceleration / novelty).
+5. Occupation market daily analytics.
+6. Skill demand segments (ML / KMeans clustering).
+
+Phases 1-3 are **core** — any failure aborts the pipeline.
+Phases 4-6 are **enrichment** — they run with soft-fail semantics
+so a missing dependency or transient error never blocks the core
+pipeline.  A warning is logged and execution continues.
 
 Writes results to Gold Iceberg tables with partition overwrite.
 
@@ -34,9 +42,12 @@ from skill_radar.platform.logging.context import get_context
 
 from .. import schema as gold_schema
 from ..matching.models import GoldAnalyticsResult
+from .emerging_skills import compute_skill_emerging_daily
 from .occupation_kpis import compute_occupation_skill_graph
+from .occupation_market import compute_occupation_market_daily
 from .salary_kpis import compute_salary_by_skill_daily
 from .skill_kpis import compute_skill_demand_daily
+from .skill_segments import compute_skill_demand_segments
 
 if TYPE_CHECKING:
     from skill_radar.config.models import PlatformSettings
@@ -250,11 +261,98 @@ def run_gold_analytics(
 
         _phase_done("Compute occupation-skill graph", t0)
 
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 5 — Emerging-skill signals  (soft-fail: non-critical)
+        # ══════════════════════════════════════════════════════════════════
+        try:
+            t0 = _phase_start("Compute emerging-skill signals")
+
+            # Read full skill_demand_daily for same country (all dates, needed for acceleration/novelty)
+            full_demand = spark.read.table(skill_demand_fqn).where(F.col("country") == country)
+
+            emerging = compute_skill_emerging_daily(
+                full_demand,
+                ingestion_date=ingestion_date,
+                weights=cfg.gold_analytics.emerging,
+            )
+
+            emerging_fqn = layout.gold_skill_emerging_daily_fqn()
+            _write_gold_table(emerging, emerging_fqn, spark)
+
+            result.skill_emerging_rows = (
+                spark.read.table(emerging_fqn).where(partition_filter).count()
+            )
+
+            _phase_done("Compute emerging-skill signals", t0)
+        except Exception:
+            logger.warning(
+                "Phase 5 (emerging-skill signals) failed — skipping. "
+                "Core analytics are unaffected.",
+                exc_info=True,
+            )
+
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 6 — Occupation market daily  (soft-fail: non-critical)
+        # ══════════════════════════════════════════════════════════════════
+        try:
+            t0 = _phase_start("Compute occupation market daily")
+
+            occ_market = compute_occupation_market_daily(occ_matches, skill_matches)
+
+            occ_market_fqn = layout.gold_occupation_market_daily_fqn()
+            _write_gold_table(occ_market, occ_market_fqn, spark)
+
+            result.occupation_market_rows = (
+                spark.read.table(occ_market_fqn).where(partition_filter).count()
+            )
+
+            _phase_done("Compute occupation market daily", t0)
+        except Exception:
+            logger.warning(
+                "Phase 6 (occupation market daily) failed — skipping. "
+                "Core analytics are unaffected.",
+                exc_info=True,
+            )
+
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 7 — Skill demand segments (ML / KMeans, soft-fail)
+        # ══════════════════════════════════════════════════════════════════
+        try:
+            t0 = _phase_start("Compute skill demand segments")
+
+            # Read the just-written skill_demand for this partition
+            demand_partition = spark.read.table(skill_demand_fqn).where(partition_filter)
+
+            segments = compute_skill_demand_segments(
+                demand_partition,
+                ingestion_date=ingestion_date,
+                config=cfg.gold_analytics.ml_segments,
+            )
+
+            segments_fqn = layout.gold_skill_demand_segments_daily_fqn()
+            _write_gold_table(segments, segments_fqn, spark)
+
+            result.skill_demand_segments_rows = (
+                spark.read.table(segments_fqn).where(partition_filter).count()
+            )
+
+            _phase_done("Compute skill demand segments", t0)
+        except Exception:
+            logger.warning(
+                "Phase 7 (skill demand segments / KMeans) failed — skipping. "
+                "Core analytics are unaffected.",
+                exc_info=True,
+            )
+
         logger.info(
-            "Gold analytics complete: demand=%d salary=%d graph=%d",
+            "Gold analytics complete: demand=%d salary=%d graph=%d "
+            "emerging=%d occ_market=%d segments=%d",
             result.skill_demand_rows,
             result.salary_by_skill_rows,
             result.occupation_skill_graph_rows,
+            result.skill_emerging_rows,
+            result.occupation_market_rows,
+            result.skill_demand_segments_rows,
         )
 
     except Exception as exc:

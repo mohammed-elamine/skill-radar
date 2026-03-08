@@ -318,3 +318,36 @@ class LakeLayout:
         return self.iceberg_table_fqn(
             "gold", "gold", "occupation_skill_graph", catalog=catalog, raw=False
         )
+
+    def gold_skill_emerging_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold daily emerging-skill signals table.
+
+        Example::
+
+            sr.sr_gold.gold_skill_emerging_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "skill_emerging_daily", catalog=catalog, raw=False
+        )
+
+    def gold_occupation_market_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold daily occupation-level market analytics table.
+
+        Example::
+
+            sr.sr_gold.gold_occupation_market_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "occupation_market_daily", catalog=catalog, raw=False
+        )
+
+    def gold_skill_demand_segments_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold daily skill demand KMeans segments table.
+
+        Example::
+
+            sr.sr_gold.gold_skill_demand_segments_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "skill_demand_segments_daily", catalog=catalog, raw=False
+        )

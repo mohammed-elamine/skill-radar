@@ -153,11 +153,25 @@ class TestGoldAnalyticsResult:
         result = GoldAnalyticsResult()
         assert result.success is True
         assert result.skill_demand_rows == 0
+        assert result.skill_emerging_rows == 0
+        assert result.occupation_market_rows == 0
+        assert result.skill_demand_segments_rows == 0
 
     def test_summary_dict(self) -> None:
         result = GoldAnalyticsResult(run_id="xyz", skill_demand_rows=100)
         summary = result.summary_dict()
         assert summary["skill_demand_rows"] == 100
+
+    def test_summary_dict_includes_new_fields(self) -> None:
+        result = GoldAnalyticsResult(
+            skill_emerging_rows=50,
+            occupation_market_rows=30,
+            skill_demand_segments_rows=20,
+        )
+        summary = result.summary_dict()
+        assert summary["skill_emerging_rows"] == 50
+        assert summary["occupation_market_rows"] == 30
+        assert summary["skill_demand_segments_rows"] == 20
 
 
 class TestGoldPipelineResult:

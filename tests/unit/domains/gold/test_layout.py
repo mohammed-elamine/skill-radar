@@ -41,6 +41,18 @@ class TestLakeLayoutGoldHelpers:
         fqn = layout.gold_occupation_skill_graph_fqn()
         assert fqn == "sr.sr_gold.gold_occupation_skill_graph"
 
+    def test_skill_emerging_daily_fqn(self, layout: LakeLayout) -> None:
+        fqn = layout.gold_skill_emerging_daily_fqn()
+        assert fqn == "sr.sr_gold.gold_skill_emerging_daily"
+
+    def test_occupation_market_daily_fqn(self, layout: LakeLayout) -> None:
+        fqn = layout.gold_occupation_market_daily_fqn()
+        assert fqn == "sr.sr_gold.gold_occupation_market_daily"
+
+    def test_skill_demand_segments_daily_fqn(self, layout: LakeLayout) -> None:
+        fqn = layout.gold_skill_demand_segments_daily_fqn()
+        assert fqn == "sr.sr_gold.gold_skill_demand_segments_daily"
+
     def test_all_gold_fqns_are_unique(self, layout: LakeLayout) -> None:
         fqns = {
             layout.gold_job_skill_matches_fqn(),
@@ -48,8 +60,11 @@ class TestLakeLayoutGoldHelpers:
             layout.gold_skill_demand_daily_fqn(),
             layout.gold_salary_by_skill_daily_fqn(),
             layout.gold_occupation_skill_graph_fqn(),
+            layout.gold_skill_emerging_daily_fqn(),
+            layout.gold_occupation_market_daily_fqn(),
+            layout.gold_skill_demand_segments_daily_fqn(),
         }
-        assert len(fqns) == 5
+        assert len(fqns) == 8
 
     def test_all_gold_fqns_use_gold_namespace(self, layout: LakeLayout) -> None:
         for method_name in (
@@ -58,6 +73,9 @@ class TestLakeLayoutGoldHelpers:
             "gold_skill_demand_daily_fqn",
             "gold_salary_by_skill_daily_fqn",
             "gold_occupation_skill_graph_fqn",
+            "gold_skill_emerging_daily_fqn",
+            "gold_occupation_market_daily_fqn",
+            "gold_skill_demand_segments_daily_fqn",
         ):
             fqn = getattr(layout, method_name)()
             parts = fqn.split(".")

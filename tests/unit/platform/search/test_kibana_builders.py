@@ -227,6 +227,28 @@ class TestOccSkillGraphDashboard:
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# Emerging Signals specifics
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class TestEmergingSignalsDashboard:
+    """Tests for the Emerging Skills & Market Signals dashboard suite."""
+
+    def test_four_visualizations(self, search_config: SearchConfig) -> None:
+        vises, _ = build_dashboard_suite(search_config, "skill_emerging_daily")
+        assert len(vises) == 4
+
+    def test_includes_kpi_metric(self, search_config: SearchConfig) -> None:
+        vises, _ = build_dashboard_suite(search_config, "skill_emerging_daily")
+        metric_vises = [v for v in vises if v.attributes["visualizationType"] == "lnsMetric"]
+        assert len(metric_vises) >= 1
+
+    def test_dashboard_title(self, search_config: SearchConfig) -> None:
+        _, dashboard = build_dashboard_suite(search_config, "skill_emerging_daily")
+        assert "Emerging" in dashboard.attributes["title"]
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # Full build
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -236,10 +258,10 @@ class TestBuildAllDashboards:
 
     def test_returns_four_tuples(self, search_config: SearchConfig) -> None:
         dvs, vises, dashes, searches = build_all_dashboards(search_config)
-        assert len(dvs) == 3
-        assert len(dashes) == 3
-        assert len(searches) == 3
-        assert len(vises) == 5 + 5 + 6  # market + salary + occ-skill
+        assert len(dvs) == 6
+        assert len(dashes) == 4
+        assert len(searches) == 6
+        assert len(vises) == 5 + 5 + 6 + 4  # market + salary + occ-skill + emerging
 
     def test_all_ids_unique(self, search_config: SearchConfig) -> None:
         dvs, vises, dashes, searches = build_all_dashboards(search_config)
