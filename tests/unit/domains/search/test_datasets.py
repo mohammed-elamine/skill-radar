@@ -24,9 +24,12 @@ class TestServedDatasetsRegistry:
         "occupation_skill_graph",
         "job_skill_matches",
         "job_occupation_matches",
+        "skill_emerging_daily",
+        "occupation_market_daily",
+        "skill_demand_segments_daily",
     ]
 
-    def test_all_five_registered(self) -> None:
+    def test_all_eight_registered(self) -> None:
         names = [ds.name for ds in SERVED_DATASETS]
         assert set(names) == set(self.EXPECTED_NAMES)
 
@@ -39,11 +42,11 @@ class TestServedDatasetsRegistry:
     def test_primary_datasets_subset(self) -> None:
         assert set(PRIMARY_DATASETS).issubset(set(ALL_DATASET_NAMES))
 
-    def test_primary_has_three(self) -> None:
-        assert len(PRIMARY_DATASETS) == 3
+    def test_primary_has_six(self) -> None:
+        assert len(PRIMARY_DATASETS) == 6
 
-    def test_all_dataset_names_has_five(self) -> None:
-        assert len(ALL_DATASET_NAMES) == 5
+    def test_all_dataset_names_has_eight(self) -> None:
+        assert len(ALL_DATASET_NAMES) == 8
 
 
 class TestGetServedDataset:

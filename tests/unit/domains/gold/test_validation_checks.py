@@ -17,6 +17,7 @@ from skill_radar.platform.validate.checks.gold import (
     OCCUPATION_SKILL_GRAPH_REQUIRED,
     SALARY_BY_SKILL_DAILY_REQUIRED,
     SKILL_DEMAND_DAILY_REQUIRED,
+    SKILL_EMERGING_DAILY_REQUIRED,
     SKILL_MATCHES_REQUIRED,
     get_gold_checks,
 )
@@ -100,7 +101,7 @@ class TestGoldCheckFactory:
         ns_checks = [c for c in checks if "namespace" in c.name]
         assert len(ns_checks) >= 1
 
-    def test_table_exists_checks_for_all_5_tables(
+    def test_table_exists_checks_for_all_8_tables(
         self, mock_spark: MagicMock, config: PlatformSettings
     ) -> None:
         checks = get_gold_checks(
@@ -112,7 +113,7 @@ class TestGoldCheckFactory:
             esco_lang="fr",
         )
         exists_checks = [c for c in checks if "table_exists" in c.name]
-        assert len(exists_checks) == 5
+        assert len(exists_checks) == 8
 
 
 class TestRequiredColumns:
@@ -125,6 +126,7 @@ class TestRequiredColumns:
         assert SKILL_DEMAND_DAILY_REQUIRED is gold_schema.SKILL_DEMAND_DAILY_REQUIRED
         assert SALARY_BY_SKILL_DAILY_REQUIRED is gold_schema.SALARY_BY_SKILL_DAILY_REQUIRED
         assert OCCUPATION_SKILL_GRAPH_REQUIRED is gold_schema.OCCUPATION_SKILL_GRAPH_REQUIRED
+        assert SKILL_EMERGING_DAILY_REQUIRED is gold_schema.SKILL_EMERGING_DAILY_REQUIRED
 
     def test_skill_matches_has_key_columns(self) -> None:
         assert "job_id" in SKILL_MATCHES_REQUIRED

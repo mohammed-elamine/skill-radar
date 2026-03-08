@@ -82,22 +82,55 @@ def _check_es_cluster_health(client: SearchClient) -> CheckResult:
         )
 
 
-def _check_kibana_reachable(kibana_url: str) -> CheckResult:
-    """Check that Kibana is reachable."""
+def _check_kibana_reachable(kibana_url: str, *, hard_fail: bool = False) -> CheckResult:
+    """Check that Kibana is reachable.
+
+    Parameters
+    ----------
+    kibana_url:
+        Kibana endpoint URL.
+    hard_fail:
+        When *False* (default) an unreachable Kibana is reported as WARN.
+        Set to *True* for dedicated infra-validation commands where Kibana
+        availability is an explicit requirement.
+    """
     try:
         reachable = is_kibana_reachable(kibana_url)
+        if reachable:
+            return create_check(
+                name="search.kibana.reachable",
+                description="Kibana is reachable",
+                passed=True,
+                detail="OK",
+            )
+        if hard_fail:
+            return create_check(
+                name="search.kibana.reachable",
+                description="Kibana is reachable",
+                passed=False,
+                detail="Connection failed",
+            )
         return create_check(
             name="search.kibana.reachable",
             description="Kibana is reachable",
-            passed=reachable,
-            detail="OK" if reachable else "Connection failed",
+            passed=True,
+            warn=True,
+            warn_reason="Kibana not reachable (non-blocking)",
         )
     except Exception as exc:
+        if hard_fail:
+            return create_check(
+                name="search.kibana.reachable",
+                description="Kibana is reachable",
+                passed=False,
+                detail=str(exc)[:200],
+            )
         return create_check(
             name="search.kibana.reachable",
             description="Kibana is reachable",
-            passed=False,
-            detail=str(exc)[:200],
+            passed=True,
+            warn=True,
+            warn_reason=f"Kibana not reachable: {str(exc)[:150]} (non-blocking)",
         )
 
 
@@ -275,6 +308,24 @@ _KEY_FIELDS: dict[str, list[str]] = {
     ],
     "job_skill_matches": ["doc_id", "ingestion_date", "country", "job_id"],
     "job_occupation_matches": ["doc_id", "ingestion_date", "country", "job_id"],
+    "skill_emerging_daily": [
+        "doc_id",
+        "ingestion_date",
+        "country",
+        "esco_skill_concept_uri",
+    ],
+    "occupation_market_daily": [
+        "doc_id",
+        "ingestion_date",
+        "country",
+        "esco_occupation_concept_uri",
+    ],
+    "skill_demand_segments_daily": [
+        "doc_id",
+        "ingestion_date",
+        "country",
+        "esco_skill_concept_uri",
+    ],
 }
 
 
@@ -538,6 +589,10 @@ def get_kibana_asset_checks(
 
     These checks verify that the expected code-managed assets have been
     applied to Kibana (data views, dashboards).
+
+    When Kibana is not reachable, all asset checks are returned as **WARN**
+    (not FAIL) because Kibana availability is not critical to the data
+    pipeline — dashboards are applied separately.
     """
     from skill_radar.domains.search.kibana_metadata import DASHBOARD_DATASETS
     from skill_radar.platform.search.kibana_assets import (
@@ -547,6 +602,55 @@ def get_kibana_asset_checks(
 
     resolved_kibana_url = kibana_url or config.search.kibana_url
     timeout = config.search.request_timeout_seconds
+
+    # ── Pre-check: if Kibana is unreachable, return all checks as WARN ──
+    try:
+        kibana_up = is_kibana_reachable(resolved_kibana_url)
+    except Exception:
+        kibana_up = False
+
+    if not kibana_up:
+        expected_dv_ids = get_expected_data_view_ids(config.search)
+        warn_checks: list[NamedCheck] = []
+
+        def _warn_dv(dv_id: str) -> CheckResult:
+            return create_check(
+                name=f"search.kibana.dv.{dv_id}",
+                description=f"Data view exists: {dv_id}",
+                passed=True,
+                warn=True,
+                warn_reason="Kibana not reachable — skipped",
+            )
+
+        def _warn_dash(dash_id: str, dash_title: str) -> CheckResult:
+            return create_check(
+                name=f"search.kibana.dash.{dash_id}",
+                description=f"Dashboard exists: {dash_title}",
+                passed=True,
+                warn=True,
+                warn_reason="Kibana not reachable — skipped",
+            )
+
+        for dv_id in expected_dv_ids:
+            _id = dv_id  # capture
+            warn_checks.append(
+                NamedCheck(
+                    name=f"search.kibana.dv.{_id}",
+                    description=f"Data view exists: {_id}",
+                    fn=lambda _i=_id: _warn_dv(_i),  # type: ignore[misc]
+                )
+            )
+        for dash in EXPECTED_DASHBOARDS:
+            _did, _dtitle = dash["id"], dash["title"]  # capture
+            warn_checks.append(
+                NamedCheck(
+                    name=f"search.kibana.dash.{_did}",
+                    description=f"Dashboard exists: {_dtitle}",
+                    fn=lambda _d=_did, _t=_dtitle: _warn_dash(_d, _t),  # type: ignore[misc]
+                )
+            )
+        return warn_checks
+
     checks: list[NamedCheck] = []
 
     # Data view checks

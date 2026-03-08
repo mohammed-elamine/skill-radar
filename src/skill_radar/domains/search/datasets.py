@@ -89,6 +89,27 @@ SERVED_DATASETS: list[ServedDataset] = [
         document_builder="build_job_occupation_matches_documents",
         mapping_key="job-occupation-matches",
     ),
+    ServedDataset(
+        name="skill_emerging_daily",
+        config_key="skill_emerging_daily",
+        fqn_method="gold_skill_emerging_daily_fqn",
+        document_builder="build_skill_emerging_documents",
+        mapping_key="skill-emerging-daily",
+    ),
+    ServedDataset(
+        name="occupation_market_daily",
+        config_key="occupation_market_daily",
+        fqn_method="gold_occupation_market_daily_fqn",
+        document_builder="build_occupation_market_documents",
+        mapping_key="occupation-market-daily",
+    ),
+    ServedDataset(
+        name="skill_demand_segments_daily",
+        config_key="skill_demand_segments_daily",
+        fqn_method="gold_skill_demand_segments_daily_fqn",
+        document_builder="build_skill_demand_segments_documents",
+        mapping_key="skill-demand-segments-daily",
+    ),
 ]
 
 # Primary serve set (compact, high-value, dashboard-friendly)
@@ -96,6 +117,9 @@ PRIMARY_DATASETS: list[str] = [
     "skill_demand_daily",
     "salary_by_skill_daily",
     "occupation_skill_graph",
+    "skill_emerging_daily",
+    "occupation_market_daily",
+    "skill_demand_segments_daily",
 ]
 
 # All available dataset names

@@ -259,6 +259,106 @@ def build_job_occupation_matches_documents(rows: list[Any]) -> list[dict[str, An
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Skill Emerging Daily
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def build_skill_emerging_documents(rows: list[Any]) -> list[dict[str, Any]]:
+    """Build documents from Gold skill_emerging_daily rows."""
+    documents: list[dict[str, Any]] = []
+    for row in rows:
+        r = row.asDict() if hasattr(row, "asDict") else dict(row)
+        country = _safe_str(r.get("country"))
+        date_val = _safe_str(r.get("ingestion_date"))
+        skill_uri = _safe_str(r.get("esco_skill_concept_uri"))
+
+        doc = {
+            "doc_id": _deterministic_id(country, date_val, skill_uri),
+            "ingestion_date": date_val,
+            "country": country,
+            "esco_skill_concept_uri": skill_uri,
+            "esco_skill_preferred_label": _safe_str(r.get("esco_skill_preferred_label")),
+            "jobs_count": _safe_int(r.get("jobs_count")),
+            "momentum_score": _safe_float(r.get("momentum_score")),
+            "acceleration_score": _safe_float(r.get("acceleration_score")),
+            "novelty_score": _safe_float(r.get("novelty_score")),
+            "emerging_composite_score": _safe_float(r.get("emerging_composite_score")),
+            "gold_run_id": _safe_str(r.get("gold_run_id")),
+            "gold_generated_at_utc": _safe_datetime(r.get("gold_generated_at_utc")),
+            "esco_version": _safe_str(r.get("esco_version")),
+            "esco_lang": _safe_str(r.get("esco_lang")),
+        }
+        documents.append(doc)
+    return documents
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Occupation Market Daily
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def build_occupation_market_documents(rows: list[Any]) -> list[dict[str, Any]]:
+    """Build documents from Gold occupation_market_daily rows."""
+    documents: list[dict[str, Any]] = []
+    for row in rows:
+        r = row.asDict() if hasattr(row, "asDict") else dict(row)
+        country = _safe_str(r.get("country"))
+        date_val = _safe_str(r.get("ingestion_date"))
+        occ_uri = _safe_str(r.get("esco_occupation_concept_uri"))
+
+        doc = {
+            "doc_id": _deterministic_id(country, date_val, occ_uri),
+            "ingestion_date": date_val,
+            "country": country,
+            "esco_occupation_concept_uri": occ_uri,
+            "esco_occupation_preferred_label": _safe_str(r.get("esco_occupation_preferred_label")),
+            "total_jobs_count": _safe_int(r.get("total_jobs_count")),
+            "unique_skills_count": _safe_int(r.get("unique_skills_count")),
+            "avg_match_score": _safe_float(r.get("avg_match_score")),
+            "gold_run_id": _safe_str(r.get("gold_run_id")),
+            "gold_generated_at_utc": _safe_datetime(r.get("gold_generated_at_utc")),
+            "esco_version": _safe_str(r.get("esco_version")),
+            "esco_lang": _safe_str(r.get("esco_lang")),
+        }
+        documents.append(doc)
+    return documents
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Skill Demand Segments Daily
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def build_skill_demand_segments_documents(rows: list[Any]) -> list[dict[str, Any]]:
+    """Build documents from Gold skill_demand_segments_daily rows."""
+    documents: list[dict[str, Any]] = []
+    for row in rows:
+        r = row.asDict() if hasattr(row, "asDict") else dict(row)
+        country = _safe_str(r.get("country"))
+        date_val = _safe_str(r.get("ingestion_date"))
+        skill_uri = _safe_str(r.get("esco_skill_concept_uri"))
+
+        doc = {
+            "doc_id": _deterministic_id(country, date_val, skill_uri),
+            "ingestion_date": date_val,
+            "country": country,
+            "esco_skill_concept_uri": skill_uri,
+            "esco_skill_preferred_label": _safe_str(r.get("esco_skill_preferred_label")),
+            "segment_id": _safe_int(r.get("segment_id")),
+            "segment_label": _safe_str(r.get("segment_label")),
+            "jobs_count": _safe_int(r.get("jobs_count")),
+            "unique_companies_count": _safe_int(r.get("unique_companies_count")),
+            "unique_locations_count": _safe_int(r.get("unique_locations_count")),
+            "gold_run_id": _safe_str(r.get("gold_run_id")),
+            "gold_generated_at_utc": _safe_datetime(r.get("gold_generated_at_utc")),
+            "esco_version": _safe_str(r.get("esco_version")),
+            "esco_lang": _safe_str(r.get("esco_lang")),
+        }
+        documents.append(doc)
+    return documents
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Registry: document builder name → function
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -268,4 +368,7 @@ DOCUMENT_BUILDERS: dict[str, Any] = {
     "build_occupation_skill_graph_documents": build_occupation_skill_graph_documents,
     "build_job_skill_matches_documents": build_job_skill_matches_documents,
     "build_job_occupation_matches_documents": build_job_occupation_matches_documents,
+    "build_skill_emerging_documents": build_skill_emerging_documents,
+    "build_occupation_market_documents": build_occupation_market_documents,
+    "build_skill_demand_segments_documents": build_skill_demand_segments_documents,
 }

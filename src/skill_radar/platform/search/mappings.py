@@ -131,6 +131,61 @@ JOB_OCCUPATION_MATCHES_MAPPING: dict = {
     }
 }
 
+SKILL_EMERGING_DAILY_MAPPING: dict = {
+    "properties": {
+        "doc_id": _KEYWORD,
+        "ingestion_date": _DATE,
+        "country": _KEYWORD,
+        "esco_skill_concept_uri": _KEYWORD,
+        "esco_skill_preferred_label": _TEXT_KEYWORD,
+        "jobs_count": _LONG,
+        "momentum_score": _DOUBLE,
+        "acceleration_score": _DOUBLE,
+        "novelty_score": _DOUBLE,
+        "emerging_composite_score": _DOUBLE,
+        "gold_run_id": _KEYWORD,
+        "gold_generated_at_utc": _TIMESTAMP,
+        "esco_version": _KEYWORD,
+        "esco_lang": _KEYWORD,
+    }
+}
+
+OCCUPATION_MARKET_DAILY_MAPPING: dict = {
+    "properties": {
+        "doc_id": _KEYWORD,
+        "ingestion_date": _DATE,
+        "country": _KEYWORD,
+        "esco_occupation_concept_uri": _KEYWORD,
+        "esco_occupation_preferred_label": _TEXT_KEYWORD,
+        "total_jobs_count": _LONG,
+        "unique_skills_count": _LONG,
+        "avg_match_score": _DOUBLE,
+        "gold_run_id": _KEYWORD,
+        "gold_generated_at_utc": _TIMESTAMP,
+        "esco_version": _KEYWORD,
+        "esco_lang": _KEYWORD,
+    }
+}
+
+SKILL_DEMAND_SEGMENTS_DAILY_MAPPING: dict = {
+    "properties": {
+        "doc_id": _KEYWORD,
+        "ingestion_date": _DATE,
+        "country": _KEYWORD,
+        "esco_skill_concept_uri": _KEYWORD,
+        "esco_skill_preferred_label": _TEXT_KEYWORD,
+        "segment_id": _LONG,
+        "segment_label": _KEYWORD,
+        "jobs_count": _LONG,
+        "unique_companies_count": _LONG,
+        "unique_locations_count": _LONG,
+        "gold_run_id": _KEYWORD,
+        "gold_generated_at_utc": _TIMESTAMP,
+        "esco_version": _KEYWORD,
+        "esco_lang": _KEYWORD,
+    }
+}
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Registry: dataset suffix → mapping
@@ -142,6 +197,9 @@ MAPPINGS: dict[str, dict] = {
     "occupation-skill-graph": OCCUPATION_SKILL_GRAPH_MAPPING,
     "job-skill-matches": JOB_SKILL_MATCHES_MAPPING,
     "job-occupation-matches": JOB_OCCUPATION_MATCHES_MAPPING,
+    "skill-emerging-daily": SKILL_EMERGING_DAILY_MAPPING,
+    "occupation-market-daily": OCCUPATION_MARKET_DAILY_MAPPING,
+    "skill-demand-segments-daily": SKILL_DEMAND_SEGMENTS_DAILY_MAPPING,
 }
 
 

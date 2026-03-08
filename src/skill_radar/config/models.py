@@ -112,6 +112,9 @@ class SearchIndicesConfig(BaseModel):
     occupation_skill_graph: str = "occupation-skill-graph"
     job_skill_matches: str = "job-skill-matches"
     job_occupation_matches: str = "job-occupation-matches"
+    skill_emerging_daily: str = "skill-emerging-daily"
+    occupation_market_daily: str = "occupation-market-daily"
+    skill_demand_segments_daily: str = "skill-demand-segments-daily"
 
 
 class SearchConfig(BaseModel):
@@ -165,6 +168,50 @@ class PlatformConfig(BaseModel):
     environment: str = "local"
 
 
+class EmergingScoreConfig(BaseModel):
+    """Weights for the composite emerging-skill score.
+
+    ``composite = w_momentum * momentum + w_acceleration * acceleration + w_novelty * novelty``
+
+    All weights must sum to 1.0.
+    """
+
+    w_momentum: float = 0.4
+    w_acceleration: float = 0.3
+    w_novelty: float = 0.3
+
+
+class MLSegmentsConfig(BaseModel):
+    """KMeans clustering parameters for skill demand segmentation."""
+
+    k: int = 4
+    min_rows: int = 20
+    seed: int = 42
+    max_iter: int = 20
+    features: list[str] = Field(
+        default_factory=lambda: [
+            "jobs_count",
+            "unique_companies_count",
+            "unique_locations_count",
+        ]
+    )
+    segment_names: dict[str, str] = Field(
+        default_factory=lambda: {
+            "0": "niche",
+            "1": "growing",
+            "2": "established",
+            "3": "dominant",
+        }
+    )
+
+
+class GoldAnalyticsConfig(BaseModel):
+    """Configuration for Gold analytics computations."""
+
+    emerging: EmergingScoreConfig = Field(default_factory=EmergingScoreConfig)
+    ml_segments: MLSegmentsConfig = Field(default_factory=MLSegmentsConfig)
+
+
 class PlatformSettings(BaseModel):
     """Root configuration model for the Skill Radar platform.
 
@@ -180,3 +227,4 @@ class PlatformSettings(BaseModel):
     adzuna: AdzunaConfig = Field(default_factory=AdzunaConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
+    gold_analytics: GoldAnalyticsConfig = Field(default_factory=GoldAnalyticsConfig)
