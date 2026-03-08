@@ -179,6 +179,10 @@ EXPECTED_DASHBOARDS: list[dict[str, str]] = [
         "id": "skillradar-dash-occ-skill-graph",
         "title": "Skill Radar / Occupation\u2013Skill Graph Explorer",
     },
+    {
+        "id": "skillradar-dash-emerging-signals",
+        "title": "Skill Radar / Emerging Skills & Market Signals",
+    },
 ]
 
 # Data view IDs for validation (prefix-dependent, built at runtime)
@@ -186,6 +190,9 @@ EXPECTED_DATA_VIEW_SUFFIXES: list[str] = [
     "skill-demand-daily",
     "salary-by-skill-daily",
     "occupation-skill-graph",
+    "skill-emerging-daily",
+    "occupation-market-daily",
+    "skill-demand-segments-daily",
 ]
 
 

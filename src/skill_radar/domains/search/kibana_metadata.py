@@ -278,6 +278,94 @@ OCCUPATION_SKILL_GRAPH_META = DashboardDatasetMeta(
     ),
 )
 
+SKILL_EMERGING_DAILY_META = DashboardDatasetMeta(
+    key="skill_emerging_daily",
+    index_suffix="skill-emerging-daily",
+    data_view_title="Skill Radar \u2014 Emerging Skills Daily",
+    time_field="ingestion_date",
+    label="Emerging Skills",
+    description="Emerging-skill signals with momentum, acceleration, and novelty scores",
+    default_sort_field="emerging_composite_score",
+    fields=(
+        FieldMeta("ingestion_date", "Ingestion Date", "time"),
+        FieldMeta("country", "Country", "dimension"),
+        FieldMeta("esco_skill_concept_uri", "Skill URI", "identifier"),
+        FieldMeta(
+            "esco_skill_preferred_label",
+            "Skill",
+            "dimension",
+            agg_field="esco_skill_preferred_label.raw",
+        ),
+        FieldMeta("jobs_count", "Jobs Count", "metric"),
+        FieldMeta("momentum_score", "Momentum", "metric"),
+        FieldMeta("acceleration_score", "Acceleration", "metric"),
+        FieldMeta("novelty_score", "Novelty", "metric"),
+        FieldMeta("emerging_composite_score", "Emerging Score", "metric"),
+        FieldMeta("gold_run_id", "Gold Run ID", "meta"),
+        FieldMeta("gold_generated_at_utc", "Gold Generated At", "meta"),
+        FieldMeta("esco_version", "ESCO Version", "meta"),
+        FieldMeta("esco_lang", "ESCO Language", "meta"),
+    ),
+)
+
+OCCUPATION_MARKET_DAILY_META = DashboardDatasetMeta(
+    key="occupation_market_daily",
+    index_suffix="occupation-market-daily",
+    data_view_title="Skill Radar \u2014 Occupation Market Daily",
+    time_field="ingestion_date",
+    label="Occupation Market",
+    description="Occupation-level market analytics with demand and skill breadth",
+    default_sort_field="total_jobs_count",
+    fields=(
+        FieldMeta("ingestion_date", "Ingestion Date", "time"),
+        FieldMeta("country", "Country", "dimension"),
+        FieldMeta("esco_occupation_concept_uri", "Occupation URI", "identifier"),
+        FieldMeta(
+            "esco_occupation_preferred_label",
+            "Occupation",
+            "dimension",
+            agg_field="esco_occupation_preferred_label.raw",
+        ),
+        FieldMeta("total_jobs_count", "Total Jobs", "metric"),
+        FieldMeta("unique_skills_count", "Unique Skills", "metric"),
+        FieldMeta("avg_match_score", "Avg Match Score", "metric"),
+        FieldMeta("gold_run_id", "Gold Run ID", "meta"),
+        FieldMeta("gold_generated_at_utc", "Gold Generated At", "meta"),
+        FieldMeta("esco_version", "ESCO Version", "meta"),
+        FieldMeta("esco_lang", "ESCO Language", "meta"),
+    ),
+)
+
+SKILL_DEMAND_SEGMENTS_DAILY_META = DashboardDatasetMeta(
+    key="skill_demand_segments_daily",
+    index_suffix="skill-demand-segments-daily",
+    data_view_title="Skill Radar \u2014 Skill Demand Segments Daily",
+    time_field="ingestion_date",
+    label="Skill Segments",
+    description="ML-derived skill demand segments (KMeans clustering)",
+    default_sort_field="jobs_count",
+    fields=(
+        FieldMeta("ingestion_date", "Ingestion Date", "time"),
+        FieldMeta("country", "Country", "dimension"),
+        FieldMeta("esco_skill_concept_uri", "Skill URI", "identifier"),
+        FieldMeta(
+            "esco_skill_preferred_label",
+            "Skill",
+            "dimension",
+            agg_field="esco_skill_preferred_label.raw",
+        ),
+        FieldMeta("segment_id", "Segment ID", "dimension"),
+        FieldMeta("segment_label", "Segment", "dimension"),
+        FieldMeta("jobs_count", "Jobs Count", "metric"),
+        FieldMeta("unique_companies_count", "Unique Companies", "metric"),
+        FieldMeta("unique_locations_count", "Unique Locations", "metric"),
+        FieldMeta("gold_run_id", "Gold Run ID", "meta"),
+        FieldMeta("gold_generated_at_utc", "Gold Generated At", "meta"),
+        FieldMeta("esco_version", "ESCO Version", "meta"),
+        FieldMeta("esco_lang", "ESCO Language", "meta"),
+    ),
+)
+
 
 # ── Registries ────────────────────────────────────────────────────────────
 
@@ -285,12 +373,16 @@ DASHBOARD_DATASETS: dict[str, DashboardDatasetMeta] = {
     "skill_demand_daily": SKILL_DEMAND_DAILY_META,
     "salary_by_skill_daily": SALARY_BY_SKILL_DAILY_META,
     "occupation_skill_graph": OCCUPATION_SKILL_GRAPH_META,
+    "skill_emerging_daily": SKILL_EMERGING_DAILY_META,
+    "occupation_market_daily": OCCUPATION_MARKET_DAILY_META,
+    "skill_demand_segments_daily": SKILL_DEMAND_SEGMENTS_DAILY_META,
 }
 
 PRIMARY_DASHBOARD_DATASETS: list[str] = [
     "skill_demand_daily",
     "salary_by_skill_daily",
     "occupation_skill_graph",
+    "skill_emerging_daily",
 ]
 
 

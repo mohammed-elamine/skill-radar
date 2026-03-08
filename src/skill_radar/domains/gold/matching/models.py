@@ -110,6 +110,9 @@ class GoldAnalyticsResult:
     skill_demand_rows: int = 0
     salary_by_skill_rows: int = 0
     occupation_skill_graph_rows: int = 0
+    skill_emerging_rows: int = 0
+    occupation_market_rows: int = 0
+    skill_demand_segments_rows: int = 0
     success: bool = True
     error: str = ""
 

@@ -39,6 +39,7 @@ from _shared.config import (
     MAX_ACTIVE_RUNS,
     SEARCH_ENABLED,
     SEARCH_ES_URL_DOCKER,
+    SEARCH_KIBANA_URL_DOCKER,
 )
 from _shared.defaults import COMMON_DEFAULT_ARGS, dag_tags
 from _shared.docker_tasks import make_skill_radar_task
@@ -145,6 +146,7 @@ with DAG(
                 f" --ingestion-date {_DS}"
                 f" --country {ADZUNA_COUNTRY}"
                 f" --es-url {SEARCH_ES_URL_DOCKER}"
+                f" --kibana-url {SEARCH_KIBANA_URL_DOCKER}"
                 f" --upload --quiet"
             ),
             dag=dag,

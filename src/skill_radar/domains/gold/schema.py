@@ -181,6 +181,41 @@ OCCUPATION_SKILL_GRAPH_REQUIRED: list[str] = [
     *GOLD_LINEAGE_COLS,
 ]
 
+SKILL_EMERGING_DAILY_REQUIRED: list[str] = [
+    "ingestion_date",
+    "country",
+    esco_skill("concept_uri"),
+    esco_skill("preferred_label"),
+    "jobs_count",
+    "momentum_score",
+    "acceleration_score",
+    "novelty_score",
+    "emerging_composite_score",
+    *GOLD_LINEAGE_COLS,
+]
+
+OCCUPATION_MARKET_DAILY_REQUIRED: list[str] = [
+    "ingestion_date",
+    "country",
+    esco_occupation("concept_uri"),
+    esco_occupation("preferred_label"),
+    "total_jobs_count",
+    "unique_skills_count",
+    "avg_match_score",
+    *GOLD_LINEAGE_COLS,
+]
+
+SKILL_DEMAND_SEGMENTS_DAILY_REQUIRED: list[str] = [
+    "ingestion_date",
+    "country",
+    esco_skill("concept_uri"),
+    esco_skill("preferred_label"),
+    "segment_id",
+    "segment_label",
+    "jobs_count",
+    *GOLD_LINEAGE_COLS,
+]
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Composite key definitions  (deduplication + validation uniqueness checks)
@@ -220,6 +255,24 @@ OCCUPATION_SKILL_GRAPH_KEY: list[str] = [
     "ingestion_date",
 ]
 
+SKILL_EMERGING_KEY: list[str] = [
+    esco_skill("concept_uri"),
+    "country",
+    "ingestion_date",
+]
+
+OCCUPATION_MARKET_KEY: list[str] = [
+    esco_occupation("concept_uri"),
+    "country",
+    "ingestion_date",
+]
+
+SKILL_DEMAND_SEGMENTS_KEY: list[str] = [
+    esco_skill("concept_uri"),
+    "country",
+    "ingestion_date",
+]
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Count-column sets  (non-negativity validation)
@@ -234,3 +287,19 @@ DEMAND_COUNT_COLS: list[str] = [
 ]
 
 SALARY_COUNT_COLS: list[str] = ["salary_jobs_count"]
+
+EMERGING_COUNT_COLS: list[str] = ["jobs_count"]
+
+OCCUPATION_MARKET_COUNT_COLS: list[str] = [
+    "total_jobs_count",
+    "unique_skills_count",
+]
+
+SEGMENTS_COUNT_COLS: list[str] = ["jobs_count"]
+
+EMERGING_SCORE_COLS: list[str] = [
+    "momentum_score",
+    "acceleration_score",
+    "novelty_score",
+    "emerging_composite_score",
+]

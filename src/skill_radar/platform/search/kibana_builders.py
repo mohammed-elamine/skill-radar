@@ -721,6 +721,127 @@ def _build_occ_skill_graph(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Dashboard D — Emerging Skills & Market Signals (skill_emerging_daily)
+# ═══════════════════════════════════════════════════════════════════════════
+
+_EMERGING_SLUG = "emerging-signals"
+
+
+def _build_emerging_signals(
+    meta: DashboardDatasetMeta,
+    data_view_id: str,
+) -> tuple[list[LensVisualizationObject], DashboardObject]:
+    """Build the Emerging Skills & Market Signals dashboard suite.
+
+    Visualizations:
+    0. KPI: total emerging skill records
+    1. Bar: top 20 skills by emerging composite score
+    2. Line: emerging composite score trend over time
+    3. Table: skill details with all signal scores
+    """
+    slug = _EMERGING_SLUG
+    skill_agg = meta.get_field("esco_skill_preferred_label").aggregation_field
+    vises: list[LensVisualizationObject] = []
+    panels: list[DashboardPanel] = []
+
+    # ── 0. KPI: Total Emerging Records ────────────────────────────────
+    cols = {**_col_count("c1", "Total Emerging Records")}
+    state = _build_lens_state(_LAYER, cols, _metric_vis(_LAYER, "c1"), data_view_id=data_view_id)
+    vis = LensVisualizationObject(
+        id=_vis_id(slug, "kpi-total-emerging"),
+        title="Emerging Skills \u2014 Total Records",
+        description="Total emerging-skill signal records",
+        visualization_type="lnsMetric",
+        state=state,
+        data_view_id=data_view_id,
+    )
+    vises.append(vis)
+    panels.append(DashboardPanel(f"{slug}-p0", vis.id, "lens", x=0, y=0, w=16, h=8))
+
+    # ── 1. Bar: Top 20 by Emerging Score ──────────────────────────────
+    cols = {
+        **_col_terms("c1", skill_agg, "Skill", size=20, order_by_col="c2"),
+        **_col_average("c2", "emerging_composite_score", "Emerging Score"),
+    }
+    state = _build_lens_state(
+        _LAYER,
+        cols,
+        _xy_vis(_LAYER, "c1", ["c2"], "bar_horizontal"),
+        data_view_id=data_view_id,
+    )
+    vis = LensVisualizationObject(
+        id=_vis_id(slug, "top-emerging-bar"),
+        title="Emerging Skills \u2014 Top by Composite Score",
+        description="Top 20 skills ranked by emerging composite score",
+        visualization_type="lnsXY",
+        state=state,
+        data_view_id=data_view_id,
+    )
+    vises.append(vis)
+    panels.append(DashboardPanel(f"{slug}-p1", vis.id, "lens", x=0, y=8, w=24, h=14))
+
+    # ── 2. Line: Composite Score Trend ────────────────────────────────
+    cols = {
+        **_col_date_histogram("c1", "ingestion_date", "Date"),
+        **_col_average("c2", "emerging_composite_score", "Avg Emerging Score"),
+    }
+    state = _build_lens_state(
+        _LAYER,
+        cols,
+        _xy_vis(_LAYER, "c1", ["c2"], "line"),
+        data_view_id=data_view_id,
+    )
+    vis = LensVisualizationObject(
+        id=_vis_id(slug, "emerging-trend-line"),
+        title="Emerging Skills \u2014 Score Trend Over Time",
+        description="Average emerging composite score across ingestion dates",
+        visualization_type="lnsXY",
+        state=state,
+        data_view_id=data_view_id,
+    )
+    vises.append(vis)
+    panels.append(DashboardPanel(f"{slug}-p2", vis.id, "lens", x=24, y=8, w=24, h=14))
+
+    # ── 3. Table: Skill Signal Details ────────────────────────────────
+    cols = {
+        **_col_terms("c1", skill_agg, "Skill", size=50, order_by_col="c5"),
+        **_col_average("c2", "momentum_score", "Momentum"),
+        **_col_average("c3", "acceleration_score", "Acceleration"),
+        **_col_average("c4", "novelty_score", "Novelty"),
+        **_col_average("c5", "emerging_composite_score", "Emerging Score"),
+    }
+    state = _build_lens_state(
+        _LAYER,
+        cols,
+        _datatable_vis(_LAYER, ["c1", "c2", "c3", "c4", "c5"]),
+        data_view_id=data_view_id,
+    )
+    vis = LensVisualizationObject(
+        id=_vis_id(slug, "signals-table"),
+        title="Emerging Skills \u2014 Signal Details Table",
+        description="Skill-level momentum, acceleration, novelty, and composite scores",
+        visualization_type="lnsDatatable",
+        state=state,
+        data_view_id=data_view_id,
+    )
+    vises.append(vis)
+    panels.append(DashboardPanel(f"{slug}-p3", vis.id, "lens", x=0, y=22, w=48, h=16))
+
+    # ── Dashboard composition ─────────────────────────────────────────
+    dashboard = DashboardObject(
+        id=_dash_id(slug),
+        title="Skill Radar / Emerging Skills & Market Signals",
+        description="Emerging skill signals: momentum, acceleration, novelty",
+        panels=panels,
+        time_restore=True,
+        time_from="now-30d",
+        time_to="now",
+    )
+
+    return vises, dashboard
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Dashboard builder registry
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -728,6 +849,7 @@ _DASHBOARD_BUILDERS: dict[str, tuple[str, Any]] = {
     "skill_demand_daily": (_MARKET_SLUG, _build_market_overview),
     "salary_by_skill_daily": (_SALARY_SLUG, _build_salary_intelligence),
     "occupation_skill_graph": (_OCC_SKILL_SLUG, _build_occ_skill_graph),
+    "skill_emerging_daily": (_EMERGING_SLUG, _build_emerging_signals),
 }
 
 
