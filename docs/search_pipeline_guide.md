@@ -79,7 +79,25 @@ make validate-search SEARCH_COUNTRY=fr SEARCH_INGESTION_DATE=2025-01-15
 make bootstrap-kibana
 ```
 
-### 5. Full Pipeline
+### 5. Generate & Apply Kibana Dashboards
+
+```bash
+# Generate NDJSON artifact only
+make export-kibana-assets
+
+# Generate and push to Kibana
+make apply-kibana-assets
+
+# Validate dashboards exist
+make validate-kibana
+```
+
+> **See the dedicated [Kibana Dashboards Guide](kibana_dashboards_guide.md)**
+> for full details on the three code-managed dashboards (Market Overview,
+> Salary Intelligence, Occupation–Skill Graph Explorer), how to extend them,
+> and the architecture behind the code-managed approach.
+
+### 6. Full Pipeline
 
 ```bash
 make run-search SEARCH_COUNTRY=fr SEARCH_INGESTION_DATE=2025-01-15
@@ -117,7 +135,7 @@ skill-radar search export \
 
 ### `skill-radar search bootstrap-kibana`
 
-Create Kibana data views from Elasticsearch aliases.
+Create Kibana data views from Elasticsearch aliases (legacy command).
 
 ```bash
 skill-radar search bootstrap-kibana \
@@ -125,6 +143,31 @@ skill-radar search bootstrap-kibana \
   [--kibana-url http://localhost:5601] \
   [--output-file kibana-artifacts.ndjson] \
   [--apply]
+```
+
+### `skill-radar search dashboard export`
+
+Generate a deterministic NDJSON artifact with all dashboards, visualizations,
+data views, and saved searches.
+
+```bash
+skill-radar search dashboard export \
+  [--output-dir ./configs/kibana] \
+  [--filename skill_radar_dashboards.ndjson] \
+  [--quiet]
+```
+
+### `skill-radar search dashboard apply`
+
+Generate and push dashboards to Kibana via the import API.
+
+```bash
+skill-radar search dashboard apply \
+  [--kibana-url http://localhost:5601] \
+  [--overwrite|--no-overwrite] \
+  [--dry-run] \
+  [--output-file ./artifacts] \
+  [--quiet]
 ```
 
 ### `skill-radar validate search`
@@ -154,6 +197,9 @@ skill-radar validate search \
 | `export-search` | Export Gold → ES |
 | `validate-search` | Validate indices |
 | `bootstrap-kibana` | Create Kibana data views |
+| `export-kibana-assets` | Generate NDJSON dashboard artifact |
+| `apply-kibana-assets` | Generate + push dashboards to Kibana |
+| `validate-kibana` | Validate Kibana dashboards exist |
 | `run-search` | Full pipeline: export → validate → bootstrap |
 
 ## Configuration
@@ -271,6 +317,7 @@ curl -X POST http://localhost:9200/skillradar-skill-demand-daily-fr/_refresh
 
 ## Related Documentation
 
+- [Kibana Dashboards Guide](kibana_dashboards_guide.md) — code-managed dashboards
 - [Gold Pipeline Guide](gold_pipeline_guide.md)
 - [Airflow Orchestration Guide](airflow_orchestration_guide.md)
 - [Platform Validation Guide](platform_validation_guide.md)

@@ -434,4 +434,162 @@ def get_search_checks(
         datasets=datasets,
         es_url=es_url,
     )
-    return infra_checks + index_checks
+    kibana_checks = get_kibana_asset_checks(config, kibana_url=kibana_url)
+    return infra_checks + index_checks + kibana_checks
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Kibana asset validation checks
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _check_kibana_data_view_exists(
+    kibana_url: str,
+    data_view_id: str,
+    data_view_title: str,
+    *,
+    timeout: int = 10,
+) -> CheckResult:
+    """Check that an expected Kibana data view exists."""
+    from skill_radar.platform.search.kibana import get_saved_object
+
+    try:
+        obj = get_saved_object(kibana_url, "index-pattern", data_view_id, timeout=timeout)
+        if obj is None:
+            return create_check(
+                name=f"search.kibana.dv.{data_view_id}",
+                description=f"Data view exists: {data_view_id}",
+                passed=False,
+                detail="missing",
+            )
+        actual_title = obj.get("attributes", {}).get("name", "")
+        if actual_title != data_view_title:
+            return create_check(
+                name=f"search.kibana.dv.{data_view_id}",
+                description=f"Data view exists: {data_view_id}",
+                passed=True,
+                warn=True,
+                warn_reason=f"Title mismatch: expected='{data_view_title}', actual='{actual_title}'",
+            )
+        return create_check(
+            name=f"search.kibana.dv.{data_view_id}",
+            description=f"Data view exists: {data_view_id}",
+            passed=True,
+            detail="exists",
+        )
+    except Exception as exc:
+        return create_check(
+            name=f"search.kibana.dv.{data_view_id}",
+            description=f"Data view exists: {data_view_id}",
+            passed=False,
+            detail=str(exc)[:200],
+        )
+
+
+def _check_kibana_dashboard_exists(
+    kibana_url: str,
+    dashboard_id: str,
+    dashboard_title: str,
+    *,
+    timeout: int = 10,
+) -> CheckResult:
+    """Check that an expected Kibana dashboard exists."""
+    from skill_radar.platform.search.kibana import get_saved_object
+
+    try:
+        obj = get_saved_object(kibana_url, "dashboard", dashboard_id, timeout=timeout)
+        if obj is None:
+            return create_check(
+                name=f"search.kibana.dash.{dashboard_id}",
+                description=f"Dashboard exists: {dashboard_title}",
+                passed=False,
+                detail="missing",
+            )
+        actual_title = obj.get("attributes", {}).get("title", "")
+        if actual_title != dashboard_title:
+            return create_check(
+                name=f"search.kibana.dash.{dashboard_id}",
+                description=f"Dashboard exists: {dashboard_title}",
+                passed=True,
+                warn=True,
+                warn_reason=f"Title mismatch: expected='{dashboard_title}', actual='{actual_title}'",
+            )
+        return create_check(
+            name=f"search.kibana.dash.{dashboard_id}",
+            description=f"Dashboard exists: {dashboard_title}",
+            passed=True,
+            detail="exists",
+        )
+    except Exception as exc:
+        return create_check(
+            name=f"search.kibana.dash.{dashboard_id}",
+            description=f"Dashboard exists: {dashboard_title}",
+            passed=False,
+            detail=str(exc)[:200],
+        )
+
+
+def get_kibana_asset_checks(
+    config: PlatformSettings,
+    *,
+    kibana_url: str | None = None,
+) -> list[NamedCheck]:
+    """Return validation checks for expected Kibana data views and dashboards.
+
+    These checks verify that the expected code-managed assets have been
+    applied to Kibana (data views, dashboards).
+    """
+    from skill_radar.domains.search.kibana_metadata import DASHBOARD_DATASETS
+    from skill_radar.platform.search.kibana_assets import (
+        EXPECTED_DASHBOARDS,
+        get_expected_data_view_ids,
+    )
+
+    resolved_kibana_url = kibana_url or config.search.kibana_url
+    timeout = config.search.request_timeout_seconds
+    checks: list[NamedCheck] = []
+
+    # Data view checks
+    expected_dv_ids = get_expected_data_view_ids(config.search)
+    for dv_id in expected_dv_ids:
+        # Extract suffix from ID to find the metadata
+        suffix = dv_id.replace(f"{config.search.index_prefix}-dv-", "")
+        meta = None
+        for m in DASHBOARD_DATASETS.values():
+            if m.index_suffix == suffix:
+                meta = m
+                break
+        dv_title = meta.data_view_title if meta else dv_id
+
+        def _make_dv_check(
+            _url: str = resolved_kibana_url,
+            _id: str = dv_id,
+            _title: str = dv_title,
+            _timeout: int = timeout,
+        ) -> NamedCheck:
+            return NamedCheck(
+                name=f"search.kibana.dv.{_id}",
+                description=f"Data view exists: {_title}",
+                fn=lambda: _check_kibana_data_view_exists(_url, _id, _title, timeout=_timeout),
+            )
+
+        checks.append(_make_dv_check())
+
+    # Dashboard checks
+    for dash in EXPECTED_DASHBOARDS:
+
+        def _make_dash_check(
+            _url: str = resolved_kibana_url,
+            _id: str = dash["id"],
+            _title: str = dash["title"],
+            _timeout: int = timeout,
+        ) -> NamedCheck:
+            return NamedCheck(
+                name=f"search.kibana.dash.{_id}",
+                description=f"Dashboard exists: {_title}",
+                fn=lambda: _check_kibana_dashboard_exists(_url, _id, _title, timeout=_timeout),
+            )
+
+        checks.append(_make_dash_check())
+
+    return checks

@@ -530,7 +530,7 @@ _SEARCH_KIBANA_URL_FLAG_HOST = --kibana-url $(if $(SEARCH_KIBANA_URL),$(SEARCH_K
 _SEARCH_ES_URL_FLAG_DOCKER = --es-url $(if $(SEARCH_ES_URL),$(SEARCH_ES_URL),$(SEARCH_ES_URL_DOCKER))
 _SEARCH_KIBANA_URL_FLAG_DOCKER = --kibana-url $(if $(SEARCH_KIBANA_URL),$(SEARCH_KIBANA_URL),$(SEARCH_KIBANA_URL_DOCKER))
 
-.PHONY: search-up search-down search-reset search-logs validate-search-infra export-search validate-search bootstrap-kibana run-search
+.PHONY: search-up search-down search-reset search-logs validate-search-infra export-search validate-search bootstrap-kibana export-kibana-assets apply-kibana-assets validate-kibana run-search
 
 search-up: ## Start Elasticsearch + Kibana (search profile)
 	$(call RUN_STEP,Start search stack (ES + Kibana),,$(SEARCH_COMPOSE) up -d)
@@ -559,8 +559,20 @@ validate-search: ## Validate Elasticsearch indices: SEARCH_COUNTRY=... SEARCH_IN
 	$(SPARK_EXEC) "uv run skill-radar validate search $(_SEARCH_DATE_FLAG) --country $(SEARCH_COUNTRY) $(_SEARCH_DATASET_FLAG) $(_SEARCH_ES_URL_FLAG_DOCKER) $(_SEARCH_KIBANA_URL_FLAG_DOCKER) $(EXTRA)")
 
 bootstrap-kibana: ## Create Kibana data views + dashboards
-	$(call RUN_STEP_HOST,Bootstrap Kibana data views,,\
-	uv run skill-radar search bootstrap-kibana $(_SEARCH_KIBANA_URL_FLAG_HOST) $(EXTRA))
+	$(call RUN_STEP_HOST,Bootstrap Kibana data views + dashboards,,\
+	uv run skill-radar search dashboard apply $(_SEARCH_KIBANA_URL_FLAG_HOST) --overwrite $(EXTRA))
+
+export-kibana-assets: ## Generate NDJSON artifact only (no Kibana push)
+	$(call RUN_STEP_HOST,Export Kibana dashboard assets to NDJSON,,\
+	uv run skill-radar search dashboard export $(EXTRA))
+
+apply-kibana-assets: ## Push generated dashboard assets to Kibana
+	$(call RUN_STEP_HOST,Apply Kibana dashboard assets,,\
+	uv run skill-radar search dashboard apply $(_SEARCH_KIBANA_URL_FLAG_HOST) --overwrite $(EXTRA))
+
+validate-kibana: ## Verify Kibana reachable + expected dashboards/data views exist
+	$(call RUN_STEP_HOST,Validate Kibana dashboards,,\
+	uv run skill-radar validate search --ingestion-date 1970-01-01 --country _none --infra-only $(_SEARCH_ES_URL_FLAG_HOST) $(_SEARCH_KIBANA_URL_FLAG_HOST) $(EXTRA))
 
 run-search: ## Full search pipeline: export → validate → kibana bootstrap
 	$(SILENT)$(MAKE) export-search SEARCH_COUNTRY=$(SEARCH_COUNTRY) SEARCH_INGESTION_DATE=$(SEARCH_INGESTION_DATE) SEARCH_DATASET=$(SEARCH_DATASET) SEARCH_ES_URL=$(SEARCH_ES_URL) EXTRA= VERBOSE=$(VERBOSE)
