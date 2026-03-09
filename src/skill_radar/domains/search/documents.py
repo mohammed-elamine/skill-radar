@@ -359,6 +359,169 @@ def build_skill_demand_segments_documents(rows: list[Any]) -> list[dict[str, Any
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Occupation Profile Daily
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def build_occupation_profile_documents(rows: list[Any]) -> list[dict[str, Any]]:
+    """Build documents from Gold occupation_profile_daily rows."""
+    documents: list[dict[str, Any]] = []
+    for row in rows:
+        r = row.asDict() if hasattr(row, "asDict") else dict(row)
+        country = _safe_str(r.get("country"))
+        date_val = _safe_str(r.get("ingestion_date"))
+        occ_uri = _safe_str(r.get("esco_occupation_concept_uri"))
+
+        doc = {
+            "doc_id": _deterministic_id(country, date_val, occ_uri),
+            "ingestion_date": date_val,
+            "country": country,
+            "esco_occupation_concept_uri": occ_uri,
+            "esco_occupation_concept_uri_uuid": _safe_str(
+                r.get("esco_occupation_concept_uri_uuid")
+            ),
+            "esco_occupation_preferred_label": _safe_str(r.get("esco_occupation_preferred_label")),
+            "occupation_search_text": _safe_str(r.get("occupation_search_text")),
+            "matched_jobs_count": _safe_int(r.get("matched_jobs_count")),
+            "distinct_companies_count": _safe_int(r.get("distinct_companies_count")),
+            "distinct_locations_count": _safe_int(r.get("distinct_locations_count")),
+            "avg_salary_mean": _safe_float(r.get("avg_salary_mean")),
+            "top_essential_skills_json": _safe_str(r.get("top_essential_skills_json")),
+            "top_optional_skills_json": _safe_str(r.get("top_optional_skills_json")),
+            "top_companies_json": _safe_str(r.get("top_companies_json")),
+            "related_skills_count": _safe_int(r.get("related_skills_count")),
+            "gold_run_id": _safe_str(r.get("gold_run_id")),
+            "gold_generated_at_utc": _safe_datetime(r.get("gold_generated_at_utc")),
+            "esco_version": _safe_str(r.get("esco_version")),
+            "esco_lang": _safe_str(r.get("esco_lang")),
+        }
+        documents.append(doc)
+    return documents
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Skill Profile Daily
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def build_skill_profile_documents(rows: list[Any]) -> list[dict[str, Any]]:
+    """Build documents from Gold skill_profile_daily rows."""
+    documents: list[dict[str, Any]] = []
+    for row in rows:
+        r = row.asDict() if hasattr(row, "asDict") else dict(row)
+        country = _safe_str(r.get("country"))
+        date_val = _safe_str(r.get("ingestion_date"))
+        skill_uri = _safe_str(r.get("esco_skill_concept_uri"))
+
+        doc = {
+            "doc_id": _deterministic_id(country, date_val, skill_uri),
+            "ingestion_date": date_val,
+            "country": country,
+            "esco_skill_concept_uri": skill_uri,
+            "esco_skill_concept_uri_uuid": _safe_str(r.get("esco_skill_concept_uri_uuid")),
+            "esco_skill_preferred_label": _safe_str(r.get("esco_skill_preferred_label")),
+            "skill_type": _safe_str(r.get("skill_type")),
+            "skill_search_text": _safe_str(r.get("skill_search_text")),
+            "jobs_count": _safe_int(r.get("jobs_count")),
+            "companies_count": _safe_int(r.get("companies_count")),
+            "locations_count": _safe_int(r.get("locations_count")),
+            "avg_salary_mean": _safe_float(r.get("avg_salary_mean")),
+            "top_occupations_json": _safe_str(r.get("top_occupations_json")),
+            "top_companies_json": _safe_str(r.get("top_companies_json")),
+            "gold_run_id": _safe_str(r.get("gold_run_id")),
+            "gold_generated_at_utc": _safe_datetime(r.get("gold_generated_at_utc")),
+            "esco_version": _safe_str(r.get("esco_version")),
+            "esco_lang": _safe_str(r.get("esco_lang")),
+        }
+        documents.append(doc)
+    return documents
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Occupation Similarity Daily
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def build_occupation_similarity_documents(rows: list[Any]) -> list[dict[str, Any]]:
+    """Build documents from Gold occupation_similarity_daily rows."""
+    documents: list[dict[str, Any]] = []
+    for row in rows:
+        r = row.asDict() if hasattr(row, "asDict") else dict(row)
+        country = _safe_str(r.get("country"))
+        date_val = _safe_str(r.get("ingestion_date"))
+        src_uri = _safe_str(r.get("source_occupation_uri"))
+        tgt_uri = _safe_str(r.get("target_occupation_uri"))
+
+        doc = {
+            "doc_id": _deterministic_id(country, date_val, src_uri, tgt_uri),
+            "ingestion_date": date_val,
+            "country": country,
+            "source_occupation_uri": src_uri,
+            "source_occupation_label": _safe_str(r.get("source_occupation_label")),
+            "target_occupation_uri": tgt_uri,
+            "target_occupation_label": _safe_str(r.get("target_occupation_label")),
+            "similarity_score": _safe_float(r.get("similarity_score")),
+            "shared_skill_count": _safe_int(r.get("shared_skill_count")),
+            "shared_essential_skill_count": _safe_int(r.get("shared_essential_skill_count")),
+            "shared_optional_skill_count": _safe_int(r.get("shared_optional_skill_count")),
+            "source_skill_count": _safe_int(r.get("source_skill_count")),
+            "target_skill_count": _safe_int(r.get("target_skill_count")),
+            "gold_run_id": _safe_str(r.get("gold_run_id")),
+            "gold_generated_at_utc": _safe_datetime(r.get("gold_generated_at_utc")),
+            "esco_version": _safe_str(r.get("esco_version")),
+            "esco_lang": _safe_str(r.get("esco_lang")),
+        }
+        documents.append(doc)
+    return documents
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Occupation Transition Daily
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def build_occupation_transition_documents(rows: list[Any]) -> list[dict[str, Any]]:
+    """Build documents from Gold occupation_transition_daily rows."""
+    documents: list[dict[str, Any]] = []
+    for row in rows:
+        r = row.asDict() if hasattr(row, "asDict") else dict(row)
+        country = _safe_str(r.get("country"))
+        date_val = _safe_str(r.get("ingestion_date"))
+        from_uri = _safe_str(r.get("from_occupation_uri"))
+        to_uri = _safe_str(r.get("to_occupation_uri"))
+
+        doc = {
+            "doc_id": _deterministic_id(country, date_val, from_uri, to_uri),
+            "ingestion_date": date_val,
+            "country": country,
+            "from_occupation_uri": from_uri,
+            "from_occupation_label": _safe_str(r.get("from_occupation_label")),
+            "to_occupation_uri": to_uri,
+            "to_occupation_label": _safe_str(r.get("to_occupation_label")),
+            "similarity_score": _safe_float(r.get("similarity_score")),
+            "shared_skills_json": _safe_str(r.get("shared_skills_json")),
+            "missing_skills_json": _safe_str(r.get("missing_skills_json")),
+            "missing_essential_skills_json": _safe_str(r.get("missing_essential_skills_json")),
+            "missing_optional_skills_json": _safe_str(r.get("missing_optional_skills_json")),
+            "missing_skill_count": _safe_int(r.get("missing_skill_count")),
+            "missing_essential_skill_count": _safe_int(r.get("missing_essential_skill_count")),
+            "transition_difficulty_score": _safe_float(r.get("transition_difficulty_score")),
+            "from_avg_salary_mean": _safe_float(r.get("from_avg_salary_mean")),
+            "to_avg_salary_mean": _safe_float(r.get("to_avg_salary_mean")),
+            "salary_delta_mean": _safe_float(r.get("salary_delta_mean")),
+            "from_jobs_count": _safe_int(r.get("from_jobs_count")),
+            "to_jobs_count": _safe_int(r.get("to_jobs_count")),
+            "jobs_delta": _safe_int(r.get("jobs_delta")),
+            "gold_run_id": _safe_str(r.get("gold_run_id")),
+            "gold_generated_at_utc": _safe_datetime(r.get("gold_generated_at_utc")),
+            "esco_version": _safe_str(r.get("esco_version")),
+            "esco_lang": _safe_str(r.get("esco_lang")),
+        }
+        documents.append(doc)
+    return documents
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Registry: document builder name → function
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -371,4 +534,9 @@ DOCUMENT_BUILDERS: dict[str, Any] = {
     "build_skill_emerging_documents": build_skill_emerging_documents,
     "build_occupation_market_documents": build_occupation_market_documents,
     "build_skill_demand_segments_documents": build_skill_demand_segments_documents,
+    # Career Navigation datasets
+    "build_occupation_profile_documents": build_occupation_profile_documents,
+    "build_skill_profile_documents": build_skill_profile_documents,
+    "build_occupation_similarity_documents": build_occupation_similarity_documents,
+    "build_occupation_transition_documents": build_occupation_transition_documents,
 }

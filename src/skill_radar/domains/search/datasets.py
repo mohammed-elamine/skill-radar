@@ -110,6 +110,35 @@ SERVED_DATASETS: list[ServedDataset] = [
         document_builder="build_skill_demand_segments_documents",
         mapping_key="skill-demand-segments-daily",
     ),
+    # Career Navigation datasets
+    ServedDataset(
+        name="occupation_profile_daily",
+        config_key="occupation_profile_daily",
+        fqn_method="gold_occupation_profile_daily_fqn",
+        document_builder="build_occupation_profile_documents",
+        mapping_key="occupation-profile-daily",
+    ),
+    ServedDataset(
+        name="skill_profile_daily",
+        config_key="skill_profile_daily",
+        fqn_method="gold_skill_profile_daily_fqn",
+        document_builder="build_skill_profile_documents",
+        mapping_key="skill-profile-daily",
+    ),
+    ServedDataset(
+        name="occupation_similarity_daily",
+        config_key="occupation_similarity_daily",
+        fqn_method="gold_occupation_similarity_daily_fqn",
+        document_builder="build_occupation_similarity_documents",
+        mapping_key="occupation-similarity-daily",
+    ),
+    ServedDataset(
+        name="occupation_transition_daily",
+        config_key="occupation_transition_daily",
+        fqn_method="gold_occupation_transition_daily_fqn",
+        document_builder="build_occupation_transition_documents",
+        mapping_key="occupation-transition-daily",
+    ),
 ]
 
 # Primary serve set (compact, high-value, dashboard-friendly)
@@ -120,6 +149,11 @@ PRIMARY_DATASETS: list[str] = [
     "skill_emerging_daily",
     "occupation_market_daily",
     "skill_demand_segments_daily",
+    # Career Navigation datasets
+    "occupation_profile_daily",
+    "skill_profile_daily",
+    "occupation_similarity_daily",
+    "occupation_transition_daily",
 ]
 
 # All available dataset names

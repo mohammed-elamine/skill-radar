@@ -108,8 +108,8 @@ class TestDashboardDatasetsRegistry:
         for key in PRIMARY_DASHBOARD_DATASETS:
             assert key in DASHBOARD_DATASETS
 
-    def test_registry_has_six_entries(self) -> None:
-        assert len(DASHBOARD_DATASETS) == 6
+    def test_registry_has_ten_entries(self) -> None:
+        assert len(DASHBOARD_DATASETS) == 10
 
     def test_all_entries_dashboard_eligible(self) -> None:
         for meta in DASHBOARD_DATASETS.values():

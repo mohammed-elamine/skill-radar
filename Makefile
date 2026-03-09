@@ -239,7 +239,7 @@ test-all: ## Run all tests (unit + integration)
 # Grouped Commands
 # ==========================================
 
-.PHONY: infra infra-reset ci dev
+.PHONY: infra infra-reset ci dev nuke up-all
 
 infra: ## Start infra and validate with smoke test
 	$(SILENT)$(MAKE) up VERBOSE=$(VERBOSE)
@@ -260,6 +260,42 @@ dev: ## Run quality checks and ensure infra is healthy
 	$(SILENT)$(MAKE) quality VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) infra VERBOSE=$(VERBOSE)
 	$(SILENT)bash -lc '$(call UI_OK,Dev workflow passed.)'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Nuclear Reset & Full Startup
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage:
+#   make nuke          # destroy everything (containers, volumes, logs)
+#   make up-all        # start ALL services (core + airflow + search)
+#   make nuke up-all   # factory reset then start fresh
+# ─────────────────────────────────────────────────────────────────────────────
+
+ALL_PROFILES = docker compose --profile airflow --profile search
+
+nuke: ## Factory reset: stop ALL services, remove ALL volumes, clean logs
+	$(SILENT)bash -lc '$(call UI_WARN,╔══════════════════════════════════════════════════════════════╗)'
+	$(SILENT)bash -lc '$(call UI_WARN,║  NUKE — Destroying all containers + volumes + logs          ║)'
+	$(SILENT)bash -lc '$(call UI_WARN,╚══════════════════════════════════════════════════════════════╝)'
+	$(call RUN_STEP,Stop all containers + remove volumes,,$(ALL_PROFILES) down -v --remove-orphans)
+	$(call RUN_STEP,Clean local logs,,rm -rf logs/validation logs/*.log)
+	$(SILENT)bash -lc '$(call UI_OK,Everything destroyed. Run make up-all to start fresh.)'
+
+up-all: ## Start ALL services (core + airflow + search), build images first
+	$(SILENT)bash -lc '$(call UI_INFO,╔══════════════════════════════════════════════════════════════╗)'
+	$(SILENT)bash -lc '$(call UI_INFO,║  Starting ALL Skill Radar services                          ║)'
+	$(SILENT)bash -lc '$(call UI_INFO,╚══════════════════════════════════════════════════════════════╝)'
+	$(call RUN_STEP,Build Spark image,,docker compose build spark)
+	$(call RUN_STEP,Build Airflow image,,$(ALL_PROFILES) build airflow-init)
+	$(call RUN_STEP,Start all services,,$(ALL_PROFILES) up -d)
+	$(call RUN_STEP,Wait for Elasticsearch + Kibana,,$(MAKE) wait-search-healthy VERBOSE=$(VERBOSE))
+	$(call RUN_STEP,Spark + Iceberg smoke test,,$(MAKE) smoke VERBOSE=$(VERBOSE))
+	$(SILENT)bash -lc '$(call UI_OK,╔══════════════════════════════════════════════════════════════╗)'
+	$(SILENT)bash -lc '$(call UI_OK,║  All services running!                                      ║)'
+	$(SILENT)bash -lc '$(call UI_OK,║  MinIO:         http://localhost:$${MINIO_CONSOLE_PORT:-9001}                     ║)'
+	$(SILENT)bash -lc '$(call UI_OK,║  Airflow:       http://localhost:$${AIRFLOW_WEB_PORT:-8085}                     ║)'
+	$(SILENT)bash -lc '$(call UI_OK,║  Elasticsearch: http://localhost:$${ES_PORT:-9200}                     ║)'
+	$(SILENT)bash -lc '$(call UI_OK,║  Kibana:        http://localhost:$${KIBANA_PORT:-5601}                     ║)'
+	$(SILENT)bash -lc '$(call UI_OK,╚══════════════════════════════════════════════════════════════╝)'
 
 # ==========================================
 # Validation Commands
@@ -574,11 +610,114 @@ validate-kibana: ## Verify Kibana reachable + expected dashboards/data views exi
 	$(call RUN_STEP_HOST,Validate Kibana dashboards,,\
 	uv run skill-radar validate search --ingestion-date 1970-01-01 --country _none --infra-only $(_SEARCH_ES_URL_FLAG_HOST) $(_SEARCH_KIBANA_URL_FLAG_HOST) $(EXTRA))
 
-run-search: ## Full search pipeline: export → validate → kibana bootstrap
+run-search: ## Full search pipeline: export → kibana bootstrap → validate
 	$(SILENT)$(MAKE) export-search SEARCH_COUNTRY=$(SEARCH_COUNTRY) SEARCH_INGESTION_DATE=$(SEARCH_INGESTION_DATE) SEARCH_DATASET=$(SEARCH_DATASET) SEARCH_ES_URL=$(SEARCH_ES_URL) EXTRA= VERBOSE=$(VERBOSE)
-	$(SILENT)$(MAKE) validate-search SEARCH_COUNTRY=$(SEARCH_COUNTRY) SEARCH_INGESTION_DATE=$(SEARCH_INGESTION_DATE) SEARCH_DATASET=$(SEARCH_DATASET) SEARCH_ES_URL=$(SEARCH_ES_URL) EXTRA= VERBOSE=$(VERBOSE)
 	$(SILENT)$(MAKE) bootstrap-kibana SEARCH_KIBANA_URL=$(SEARCH_KIBANA_URL) EXTRA= VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) validate-search SEARCH_COUNTRY=$(SEARCH_COUNTRY) SEARCH_INGESTION_DATE=$(SEARCH_INGESTION_DATE) SEARCH_DATASET=$(SEARCH_DATASET) SEARCH_ES_URL=$(SEARCH_ES_URL) SEARCH_KIBANA_URL=$(SEARCH_KIBANA_URL) EXTRA= VERBOSE=$(VERBOSE)
 	$(SILENT)bash -lc '$(call UI_OK,Search pipeline complete.)'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Full End-to-End Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs the entire platform in a single command:
+#   infra → search stack → ESCO (upload → bronze → silver)
+#         → Adzuna (bronze → silver) → Gold → Search → Kibana
+#
+# Usage:
+#   make run-all                                       # all defaults (fr, v1.2.1, today)
+#   make run-all PIPELINE_DATE=2026-03-06              # specific date
+#   make run-all PIPELINE_COUNTRY=gb VERSION=v1.2.1    # different country
+#   make run-all GOLD_JOB_LIMIT=50                     # limit jobs (debug)
+#
+# Prerequisites:
+#   - Docker Compose running (core profile): make up
+#   - ESCO ZIP in dropzone: ./data/incoming/esco/esco.zip
+#   - Adzuna API keys in .env: ADZUNA_APP_ID, ADZUNA_APP_KEY
+# ─────────────────────────────────────────────────────────────────────────────
+
+PIPELINE_DATE    ?= $(shell date +%Y-%m-%d)
+PIPELINE_COUNTRY ?= fr
+
+.PHONY: run-all wait-search-healthy
+
+wait-search-healthy: ## Wait for Elasticsearch + Kibana to be healthy
+	$(SILENT)bash -lc '\
+	$(call UI_INFO,Waiting for Elasticsearch to be healthy...); \
+	for i in $$(seq 1 60); do \
+	  if curl -fsS http://localhost:$${ES_PORT:-9200}/_cluster/health >/dev/null 2>&1; then \
+	    $(call UI_OK,Elasticsearch is healthy); \
+	    break; \
+	  fi; \
+	  if [ $$i -eq 60 ]; then \
+	    $(call UI_FAIL,Elasticsearch did not become healthy in 120s); \
+	    exit 1; \
+	  fi; \
+	  sleep 2; \
+	done; \
+	$(call UI_INFO,Waiting for Kibana to be healthy...); \
+	for i in $$(seq 1 60); do \
+	  if curl -fsS http://localhost:$${KIBANA_PORT:-5601}/api/status >/dev/null 2>&1; then \
+	    $(call UI_OK,Kibana is healthy); \
+	    break; \
+	  fi; \
+	  if [ $$i -eq 60 ]; then \
+	    $(call UI_FAIL,Kibana did not become healthy in 120s); \
+	    exit 1; \
+	  fi; \
+	  sleep 2; \
+	done'
+
+run-all: ## Full pipeline: infra → ESCO → Adzuna → Gold → Search → Kibana dashboards
+	$(SILENT)bash -lc '$(call UI_INFO,╔══════════════════════════════════════════════════════════════╗)'
+	$(SILENT)bash -lc '$(call UI_INFO,║  Skill Radar — Full Pipeline                               ║)'
+	$(SILENT)bash -lc '$(call UI_INFO,║  Date: $(PIPELINE_DATE)  Country: $(PIPELINE_COUNTRY)  ESCO: $(VERSION)/$(ESCO_LANG)             ║)'
+	$(SILENT)bash -lc '$(call UI_INFO,╚══════════════════════════════════════════════════════════════╝)'
+	@echo ""
+	$(SILENT)bash -lc '$(call UI_INFO,[1/7] Infrastructure provisioning...)'
+	$(SILENT)$(MAKE) run-infra VERBOSE=$(VERBOSE)
+	@echo ""
+	$(SILENT)bash -lc '$(call UI_INFO,[2/7] Starting search stack (Elasticsearch + Kibana)...)'
+	$(SILENT)$(MAKE) search-up VERBOSE=$(VERBOSE)
+	@echo ""
+	$(SILENT)bash -lc '$(call UI_INFO,[3/7] ESCO pipeline (upload → bronze → silver)...)'
+	$(SILENT)$(MAKE) upload-esco VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) EXTRA=--force VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) bronze-esco VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) validate-esco-bronze VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) VERBOSE=$(VERBOSE)
+	$(SILENT)$(MAKE) run-esco-silver VERSION=$(VERSION) ESCO_LANG=$(ESCO_LANG) ENTITIES=$(ENTITIES) VERBOSE=$(VERBOSE)
+	@echo ""
+	$(SILENT)bash -lc '$(call UI_INFO,[4/7] Adzuna pipeline (bronze → silver)...)'
+	$(SILENT)$(MAKE) run-adzuna \
+		ADZUNA_COUNTRY=$(PIPELINE_COUNTRY) \
+		ADZUNA_INGESTION_DATE=$(PIPELINE_DATE) \
+		ADZUNA_PRESET=$(ADZUNA_PRESET) \
+		ADZUNA_MAX_PAGES=$(ADZUNA_MAX_PAGES) \
+		ADZUNA_RESULTS_PER_PAGE=$(ADZUNA_RESULTS_PER_PAGE) \
+		VERBOSE=$(VERBOSE)
+	@echo ""
+	$(SILENT)bash -lc '$(call UI_INFO,[5/7] Gold pipeline (matching → analytics → validate)...)'
+	$(SILENT)$(MAKE) run-gold \
+		GOLD_COUNTRY=$(PIPELINE_COUNTRY) \
+		GOLD_INGESTION_DATE=$(PIPELINE_DATE) \
+		GOLD_ESCO_VERSION=$(VERSION) \
+		GOLD_ESCO_LANG=$(ESCO_LANG) \
+		GOLD_JOB_LIMIT=$(GOLD_JOB_LIMIT) \
+		VERBOSE=$(VERBOSE)
+	@echo ""
+	$(SILENT)bash -lc '$(call UI_INFO,[6/7] Waiting for search stack to be healthy...)'
+	$(SILENT)$(MAKE) wait-search-healthy VERBOSE=$(VERBOSE)
+	@echo ""
+	$(SILENT)bash -lc '$(call UI_INFO,[7/7] Search pipeline (export → validate → Kibana dashboards)...)'
+	$(SILENT)$(MAKE) run-search \
+		SEARCH_COUNTRY=$(PIPELINE_COUNTRY) \
+		SEARCH_INGESTION_DATE=$(PIPELINE_DATE) \
+		SEARCH_ES_URL=$(SEARCH_ES_URL) \
+		SEARCH_KIBANA_URL=$(SEARCH_KIBANA_URL) \
+		VERBOSE=$(VERBOSE)
+	@echo ""
+	$(SILENT)bash -lc '$(call UI_OK,╔══════════════════════════════════════════════════════════════╗)'
+	$(SILENT)bash -lc '$(call UI_OK,║  Full pipeline complete!                                    ║)'
+	$(SILENT)bash -lc '$(call UI_OK,║  Kibana: http://localhost:$${KIBANA_PORT:-5601}                           ║)'
+	$(SILENT)bash -lc '$(call UI_OK,╚══════════════════════════════════════════════════════════════╝)'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Airflow Orchestration

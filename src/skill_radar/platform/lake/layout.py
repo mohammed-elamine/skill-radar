@@ -351,3 +351,49 @@ class LakeLayout:
         return self.iceberg_table_fqn(
             "gold", "gold", "skill_demand_segments_daily", catalog=catalog, raw=False
         )
+
+    # -- Career Navigation Gold convenience helpers -------------------------
+
+    def gold_occupation_profile_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold occupation profile daily table.
+
+        Example::
+
+            sr.sr_gold.gold_occupation_profile_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "occupation_profile_daily", catalog=catalog, raw=False
+        )
+
+    def gold_skill_profile_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold skill profile daily table.
+
+        Example::
+
+            sr.sr_gold.gold_skill_profile_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "skill_profile_daily", catalog=catalog, raw=False
+        )
+
+    def gold_occupation_similarity_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold occupation similarity daily table.
+
+        Example::
+
+            sr.sr_gold.gold_occupation_similarity_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "occupation_similarity_daily", catalog=catalog, raw=False
+        )
+
+    def gold_occupation_transition_daily_fqn(self, *, catalog: str | None = None) -> str:
+        """FQN for the Gold occupation transition daily table.
+
+        Example::
+
+            sr.sr_gold.gold_occupation_transition_daily
+        """
+        return self.iceberg_table_fqn(
+            "gold", "gold", "occupation_transition_daily", catalog=catalog, raw=False
+        )

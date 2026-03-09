@@ -94,8 +94,8 @@ without aborting the pipeline.
 
 ## 3. Dataset A — Emerging-Skill Signals
 
-**Module**: `src/skill_radar/domains/gold/analytics/emerging_skills.py`
-**Function**: `compute_skill_emerging_daily(skill_demand_df, *, ingestion_date, weights)`
+**Module**: `src/skill_radar/domains/gold/analytics/emerging_skills.py`<br>
+**Function**: `compute_skill_emerging_daily(skill_demand_df, *, ingestion_date, weights)`<br>
 **Iceberg table**: `sr.sr_gold.gold_skill_emerging_daily`
 
 ### Concept
@@ -146,9 +146,9 @@ esco_lang                 STRING
 
 ## 4. Dataset B — Occupation Market Daily
 
-**Module**: `src/skill_radar/domains/gold/analytics/occupation_market.py`
-**Function**: `compute_occupation_market_daily(occ_matches_df, skill_matches_df)`
-**Iceberg table**: `sr.sr_gold.gold_occupation_market_daily`
+**Module**: `src/skill_radar/domains/gold/analytics/occupation_market.py`<br>
+**Function**: `compute_occupation_market_daily(occ_matches_df, skill_matches_df)`<br>
+**Iceberg table**: `sr.sr_gold.gold_occupation_market_daily`<br>
 
 ### Concept
 
@@ -191,11 +191,11 @@ esco_lang                         STRING
 
 ## 5. Dataset C — Skill Demand Segments (ML)
 
-**Module**: `src/skill_radar/domains/gold/analytics/skill_segments.py`
-**Function**: `compute_skill_demand_segments(skill_demand_df, *, ingestion_date, config)`
-**Iceberg table**: `sr.sr_gold.gold_skill_demand_segments_daily`
+**Module**: `src/skill_radar/domains/gold/analytics/skill_segments.py`<br>
+**Function**: `compute_skill_demand_segments(skill_demand_df, *, ingestion_date, config)`<br>
+**Iceberg table**: `sr.sr_gold.gold_skill_demand_segments_daily`<br>
 **ML Library**: PySpark MLlib (`pyspark.ml.clustering.KMeans`,
-`pyspark.ml.feature.VectorAssembler`)
+`pyspark.ml.feature.VectorAssembler`)<br>
 
 ### Concept
 

@@ -113,6 +113,10 @@ class GoldAnalyticsResult:
     skill_emerging_rows: int = 0
     occupation_market_rows: int = 0
     skill_demand_segments_rows: int = 0
+    occupation_profile_rows: int = 0
+    skill_profile_rows: int = 0
+    occupation_similarity_rows: int = 0
+    occupation_transition_rows: int = 0
     success: bool = True
     error: str = ""
 

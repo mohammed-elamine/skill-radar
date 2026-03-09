@@ -115,6 +115,10 @@ class SearchIndicesConfig(BaseModel):
     skill_emerging_daily: str = "skill-emerging-daily"
     occupation_market_daily: str = "occupation-market-daily"
     skill_demand_segments_daily: str = "skill-demand-segments-daily"
+    occupation_profile_daily: str = "occupation-profile-daily"
+    skill_profile_daily: str = "skill-profile-daily"
+    occupation_similarity_daily: str = "occupation-similarity-daily"
+    occupation_transition_daily: str = "occupation-transition-daily"
 
 
 class SearchConfig(BaseModel):
@@ -205,11 +209,69 @@ class MLSegmentsConfig(BaseModel):
     )
 
 
+class SimilarityConfig(BaseModel):
+    """Occupation-similarity scoring parameters.
+
+    Attributes
+    ----------
+    top_n:
+        Maximum nearest targets per source occupation.
+    w_essential:
+        Weight for shared essential skills in the weighted Jaccard score.
+    w_optional:
+        Weight for shared optional skills in the weighted Jaccard score.
+    """
+
+    top_n: int = 20
+    w_essential: float = 2.0
+    w_optional: float = 1.0
+
+
+class TransitionConfig(BaseModel):
+    """Occupation-transition difficulty parameters.
+
+    Attributes
+    ----------
+    w_essential:
+        Weight of each missing *essential* skill in the difficulty score.
+    w_optional:
+        Weight of each missing *optional* skill in the difficulty score.
+    """
+
+    w_essential: float = 2.0
+    w_optional: float = 1.0
+
+
+class CareerNavigationConfig(BaseModel):
+    """Configuration for Career Navigation datasets.
+
+    Attributes
+    ----------
+    similarity:
+        Occupation-similarity scoring parameters.
+    transition:
+        Transition-difficulty scoring parameters.
+    top_skills:
+        Maximum skills included in profile JSON fields.
+    top_companies:
+        Maximum companies included in profile JSON fields.
+    top_occupations:
+        Maximum occupations in skill-profile JSON fields.
+    """
+
+    similarity: SimilarityConfig = Field(default_factory=SimilarityConfig)
+    transition: TransitionConfig = Field(default_factory=TransitionConfig)
+    top_skills: int = 30
+    top_companies: int = 20
+    top_occupations: int = 30
+
+
 class GoldAnalyticsConfig(BaseModel):
     """Configuration for Gold analytics computations."""
 
     emerging: EmergingScoreConfig = Field(default_factory=EmergingScoreConfig)
     ml_segments: MLSegmentsConfig = Field(default_factory=MLSegmentsConfig)
+    career_nav: CareerNavigationConfig = Field(default_factory=CareerNavigationConfig)
 
 
 class PlatformSettings(BaseModel):

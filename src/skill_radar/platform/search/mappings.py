@@ -187,6 +187,108 @@ SKILL_DEMAND_SEGMENTS_DAILY_MAPPING: dict = {
 }
 
 
+# ── Career Navigation mappings ────────────────────────────────────────
+
+OCCUPATION_PROFILE_DAILY_MAPPING: dict = {
+    "properties": {
+        "doc_id": _KEYWORD,
+        "ingestion_date": _DATE,
+        "country": _KEYWORD,
+        "esco_occupation_concept_uri": _KEYWORD,
+        "esco_occupation_concept_uri_uuid": _KEYWORD,
+        "esco_occupation_preferred_label": _TEXT_KEYWORD,
+        "occupation_search_text": {"type": "text", "analyzer": "standard"},
+        "matched_jobs_count": _LONG,
+        "distinct_companies_count": _LONG,
+        "distinct_locations_count": _LONG,
+        "avg_salary_mean": _DOUBLE,
+        "top_essential_skills_json": {"type": "text", "index": False},
+        "top_optional_skills_json": {"type": "text", "index": False},
+        "top_companies_json": {"type": "text", "index": False},
+        "related_skills_count": _LONG,
+        "gold_run_id": _KEYWORD,
+        "gold_generated_at_utc": _TIMESTAMP,
+        "esco_version": _KEYWORD,
+        "esco_lang": _KEYWORD,
+    }
+}
+
+SKILL_PROFILE_DAILY_MAPPING: dict = {
+    "properties": {
+        "doc_id": _KEYWORD,
+        "ingestion_date": _DATE,
+        "country": _KEYWORD,
+        "esco_skill_concept_uri": _KEYWORD,
+        "esco_skill_concept_uri_uuid": _KEYWORD,
+        "esco_skill_preferred_label": _TEXT_KEYWORD,
+        "skill_type": _KEYWORD,
+        "skill_search_text": {"type": "text", "analyzer": "standard"},
+        "jobs_count": _LONG,
+        "companies_count": _LONG,
+        "locations_count": _LONG,
+        "avg_salary_mean": _DOUBLE,
+        "top_occupations_json": {"type": "text", "index": False},
+        "top_companies_json": {"type": "text", "index": False},
+        "gold_run_id": _KEYWORD,
+        "gold_generated_at_utc": _TIMESTAMP,
+        "esco_version": _KEYWORD,
+        "esco_lang": _KEYWORD,
+    }
+}
+
+OCCUPATION_SIMILARITY_DAILY_MAPPING: dict = {
+    "properties": {
+        "doc_id": _KEYWORD,
+        "ingestion_date": _DATE,
+        "country": _KEYWORD,
+        "source_occupation_uri": _KEYWORD,
+        "source_occupation_label": _TEXT_KEYWORD,
+        "target_occupation_uri": _KEYWORD,
+        "target_occupation_label": _TEXT_KEYWORD,
+        "similarity_score": _DOUBLE,
+        "shared_skill_count": _LONG,
+        "shared_essential_skill_count": _LONG,
+        "shared_optional_skill_count": _LONG,
+        "source_skill_count": _LONG,
+        "target_skill_count": _LONG,
+        "gold_run_id": _KEYWORD,
+        "gold_generated_at_utc": _TIMESTAMP,
+        "esco_version": _KEYWORD,
+        "esco_lang": _KEYWORD,
+    }
+}
+
+OCCUPATION_TRANSITION_DAILY_MAPPING: dict = {
+    "properties": {
+        "doc_id": _KEYWORD,
+        "ingestion_date": _DATE,
+        "country": _KEYWORD,
+        "from_occupation_uri": _KEYWORD,
+        "from_occupation_label": _TEXT_KEYWORD,
+        "to_occupation_uri": _KEYWORD,
+        "to_occupation_label": _TEXT_KEYWORD,
+        "similarity_score": _DOUBLE,
+        "shared_skills_json": {"type": "text", "index": False},
+        "missing_skills_json": {"type": "text", "index": False},
+        "missing_essential_skills_json": {"type": "text", "index": False},
+        "missing_optional_skills_json": {"type": "text", "index": False},
+        "missing_skill_count": _LONG,
+        "missing_essential_skill_count": _LONG,
+        "transition_difficulty_score": _DOUBLE,
+        "from_avg_salary_mean": _DOUBLE,
+        "to_avg_salary_mean": _DOUBLE,
+        "salary_delta_mean": _DOUBLE,
+        "from_jobs_count": _LONG,
+        "to_jobs_count": _LONG,
+        "jobs_delta": _LONG,
+        "gold_run_id": _KEYWORD,
+        "gold_generated_at_utc": _TIMESTAMP,
+        "esco_version": _KEYWORD,
+        "esco_lang": _KEYWORD,
+    }
+}
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Registry: dataset suffix → mapping
 # ═══════════════════════════════════════════════════════════════════════════
@@ -200,6 +302,11 @@ MAPPINGS: dict[str, dict] = {
     "skill-emerging-daily": SKILL_EMERGING_DAILY_MAPPING,
     "occupation-market-daily": OCCUPATION_MARKET_DAILY_MAPPING,
     "skill-demand-segments-daily": SKILL_DEMAND_SEGMENTS_DAILY_MAPPING,
+    # Career Navigation datasets
+    "occupation-profile-daily": OCCUPATION_PROFILE_DAILY_MAPPING,
+    "skill-profile-daily": SKILL_PROFILE_DAILY_MAPPING,
+    "occupation-similarity-daily": OCCUPATION_SIMILARITY_DAILY_MAPPING,
+    "occupation-transition-daily": OCCUPATION_TRANSITION_DAILY_MAPPING,
 }
 
 

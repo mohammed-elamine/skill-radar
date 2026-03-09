@@ -21,9 +21,13 @@ class TestMappingsRegistry:
         "skill-emerging-daily",
         "occupation-market-daily",
         "skill-demand-segments-daily",
+        "occupation-profile-daily",
+        "skill-profile-daily",
+        "occupation-similarity-daily",
+        "occupation-transition-daily",
     ]
 
-    def test_all_eight_datasets_registered(self) -> None:
+    def test_all_twelve_datasets_registered(self) -> None:
         for key in self.EXPECTED_KEYS:
             assert key in MAPPINGS, f"Missing mapping key: {key}"
 
