@@ -100,8 +100,8 @@ class TestGenerateAllAssets:
 
     def test_object_count_matches_expected(self, search_config: SearchConfig) -> None:
         objects = generate_all_assets(search_config)
-        # 6 data views + 6 saved searches + 20 visualizations + 4 dashboards = 36
-        assert len(objects) == 36
+        # 10 data views + 10 saved searches + 24 visualizations + 5 dashboards = 49
+        assert len(objects) == 49
 
 
 class TestObjectsToNdjson:
@@ -158,11 +158,11 @@ class TestWriteNdjsonArtifact:
     def test_result_counts(self, search_config: SearchConfig) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             result = write_ndjson_artifact(search_config, output_dir=Path(tmpdir))
-            assert result.data_views_count == 6
-            assert result.dashboards_count == 4
-            assert result.saved_searches_count == 6
-            assert result.visualizations_count == 20
-            assert result.total_objects == 36
+            assert result.data_views_count == 10
+            assert result.dashboards_count == 5
+            assert result.saved_searches_count == 10
+            assert result.visualizations_count == 24
+            assert result.total_objects == 49
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -174,21 +174,21 @@ class TestExpectedAssetInventory:
     """Tests for expected asset inventory constants and helpers."""
 
     def test_expected_dashboards_count(self) -> None:
-        assert len(EXPECTED_DASHBOARDS) == 4
+        assert len(EXPECTED_DASHBOARDS) == 5
 
     def test_expected_dashboard_ids(self) -> None:
         ids = get_expected_dashboard_ids()
-        assert len(ids) == 4
+        assert len(ids) == 5
         for did in ids:
             assert did.startswith("skillradar-dash-")
 
     def test_expected_data_view_suffixes(self) -> None:
-        assert len(EXPECTED_DATA_VIEW_SUFFIXES) == 6
+        assert len(EXPECTED_DATA_VIEW_SUFFIXES) == 10
 
     def test_expected_data_view_ids_use_config_prefix(self) -> None:
         cfg = SearchConfig(index_prefix="myapp")
         ids = get_expected_data_view_ids(cfg)
-        assert len(ids) == 6
+        assert len(ids) == 10
         for dvid in ids:
             assert dvid.startswith("myapp-dv-")
 

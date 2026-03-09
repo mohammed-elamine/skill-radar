@@ -256,12 +256,14 @@ class TestEmergingSignalsDashboard:
 class TestBuildAllDashboards:
     """Tests for build_all_dashboards()."""
 
-    def test_returns_four_tuples(self, search_config: SearchConfig) -> None:
+    def test_returns_five_tuples(self, search_config: SearchConfig) -> None:
         dvs, vises, dashes, searches = build_all_dashboards(search_config)
-        assert len(dvs) == 6
-        assert len(dashes) == 4
-        assert len(searches) == 6
-        assert len(vises) == 5 + 5 + 6 + 4  # market + salary + occ-skill + emerging
+        assert len(dvs) == 10
+        assert len(dashes) == 5
+        assert len(searches) == 10
+        assert (
+            len(vises) == 5 + 5 + 6 + 4 + 4
+        )  # market + salary + occ-skill + emerging + career-nav
 
     def test_all_ids_unique(self, search_config: SearchConfig) -> None:
         dvs, vises, dashes, searches = build_all_dashboards(search_config)

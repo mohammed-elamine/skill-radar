@@ -41,6 +41,10 @@ OCCUPATION_SKILL_GRAPH_REQUIRED = gold_schema.OCCUPATION_SKILL_GRAPH_REQUIRED
 SKILL_EMERGING_DAILY_REQUIRED = gold_schema.SKILL_EMERGING_DAILY_REQUIRED
 OCCUPATION_MARKET_DAILY_REQUIRED = gold_schema.OCCUPATION_MARKET_DAILY_REQUIRED
 SKILL_DEMAND_SEGMENTS_DAILY_REQUIRED = gold_schema.SKILL_DEMAND_SEGMENTS_DAILY_REQUIRED
+OCCUPATION_PROFILE_DAILY_REQUIRED = gold_schema.OCCUPATION_PROFILE_DAILY_REQUIRED
+SKILL_PROFILE_DAILY_REQUIRED = gold_schema.SKILL_PROFILE_DAILY_REQUIRED
+OCCUPATION_SIMILARITY_DAILY_REQUIRED = gold_schema.OCCUPATION_SIMILARITY_DAILY_REQUIRED
+OCCUPATION_TRANSITION_DAILY_REQUIRED = gold_schema.OCCUPATION_TRANSITION_DAILY_REQUIRED
 
 # Lineage columns common to all Gold tables
 _GOLD_LINEAGE_COLS = gold_schema.GOLD_LINEAGE_COLS
@@ -275,7 +279,7 @@ def get_gold_checks(
     esco_version: str,  # noqa: ARG001
     esco_lang: str,  # noqa: ARG001
 ) -> list[NamedCheck]:
-    """Build the list of Gold validation checks for all 8 tables.
+    """Build the list of Gold validation checks for all 12 tables.
 
     Parameters
     ----------
@@ -303,6 +307,10 @@ def get_gold_checks(
     emerging_fqn = layout.gold_skill_emerging_daily_fqn()
     market_fqn = layout.gold_occupation_market_daily_fqn()
     segments_fqn = layout.gold_skill_demand_segments_daily_fqn()
+    occ_profile_fqn = layout.gold_occupation_profile_daily_fqn()
+    skill_profile_fqn = layout.gold_skill_profile_daily_fqn()
+    occ_similarity_fqn = layout.gold_occupation_similarity_daily_fqn()
+    occ_transition_fqn = layout.gold_occupation_transition_daily_fqn()
 
     checks: list[NamedCheck] = []
 
@@ -760,6 +768,234 @@ def get_gold_checks(
                 name="gold.segments.lineage",
                 description="Gold lineage columns present",
                 fn=lambda: _check_lineage_present(spark, segments_fqn),
+            ),
+        ]
+    )
+
+    # ── gold_occupation_profile_daily ──
+    checks.extend(
+        [
+            NamedCheck(
+                name="gold.occ_profile.table_exists",
+                description=f"Table {occ_profile_fqn} exists",
+                fn=lambda: check_table_exists(spark, occ_profile_fqn),
+            ),
+            NamedCheck(
+                name="gold.occ_profile.non_empty",
+                description=f"Table {occ_profile_fqn} is non-empty",
+                fn=lambda: check_table_non_empty(spark, occ_profile_fqn),
+            ),
+            NamedCheck(
+                name="gold.occ_profile.schema",
+                description="gold_occupation_profile_daily has required columns",
+                fn=lambda: check_table_schema_contains(
+                    spark, occ_profile_fqn, OCCUPATION_PROFILE_DAILY_REQUIRED
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_profile.partition_non_empty",
+                description=f"occ_profile partition ({ingestion_date}, {country}) non-empty",
+                fn=lambda: _check_partition_non_empty(
+                    spark,
+                    occ_profile_fqn,
+                    ingestion_date=ingestion_date,
+                    country=country,
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_profile.positive_counts",
+                description="Count columns non-negative",
+                fn=lambda: _check_positive_counts(
+                    spark,
+                    occ_profile_fqn,
+                    gold_schema.OCCUPATION_PROFILE_COUNT_COLS,
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_profile.no_duplicates",
+                description=f"No duplicate ({', '.join(gold_schema.OCCUPATION_PROFILE_KEY)})",
+                fn=lambda: _check_no_duplicate_keys(
+                    spark,
+                    occ_profile_fqn,
+                    gold_schema.OCCUPATION_PROFILE_KEY,
+                    "no_duplicates",
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_profile.lineage",
+                description="Gold lineage columns present",
+                fn=lambda: _check_lineage_present(spark, occ_profile_fqn),
+            ),
+        ]
+    )
+
+    # ── gold_skill_profile_daily ──
+    checks.extend(
+        [
+            NamedCheck(
+                name="gold.skill_profile.table_exists",
+                description=f"Table {skill_profile_fqn} exists",
+                fn=lambda: check_table_exists(spark, skill_profile_fqn),
+            ),
+            NamedCheck(
+                name="gold.skill_profile.non_empty",
+                description=f"Table {skill_profile_fqn} is non-empty",
+                fn=lambda: check_table_non_empty(spark, skill_profile_fqn),
+            ),
+            NamedCheck(
+                name="gold.skill_profile.schema",
+                description="gold_skill_profile_daily has required columns",
+                fn=lambda: check_table_schema_contains(
+                    spark, skill_profile_fqn, SKILL_PROFILE_DAILY_REQUIRED
+                ),
+            ),
+            NamedCheck(
+                name="gold.skill_profile.partition_non_empty",
+                description=f"skill_profile partition ({ingestion_date}, {country}) non-empty",
+                fn=lambda: _check_partition_non_empty(
+                    spark,
+                    skill_profile_fqn,
+                    ingestion_date=ingestion_date,
+                    country=country,
+                ),
+            ),
+            NamedCheck(
+                name="gold.skill_profile.positive_counts",
+                description="Count columns non-negative",
+                fn=lambda: _check_positive_counts(
+                    spark,
+                    skill_profile_fqn,
+                    gold_schema.SKILL_PROFILE_COUNT_COLS,
+                ),
+            ),
+            NamedCheck(
+                name="gold.skill_profile.no_duplicates",
+                description=f"No duplicate ({', '.join(gold_schema.SKILL_PROFILE_KEY)})",
+                fn=lambda: _check_no_duplicate_keys(
+                    spark,
+                    skill_profile_fqn,
+                    gold_schema.SKILL_PROFILE_KEY,
+                    "no_duplicates",
+                ),
+            ),
+            NamedCheck(
+                name="gold.skill_profile.lineage",
+                description="Gold lineage columns present",
+                fn=lambda: _check_lineage_present(spark, skill_profile_fqn),
+            ),
+        ]
+    )
+
+    # ── gold_occupation_similarity_daily ──
+    checks.extend(
+        [
+            NamedCheck(
+                name="gold.occ_similarity.table_exists",
+                description=f"Table {occ_similarity_fqn} exists",
+                fn=lambda: check_table_exists(spark, occ_similarity_fqn),
+            ),
+            NamedCheck(
+                name="gold.occ_similarity.non_empty",
+                description=f"Table {occ_similarity_fqn} is non-empty",
+                fn=lambda: check_table_non_empty(spark, occ_similarity_fqn),
+            ),
+            NamedCheck(
+                name="gold.occ_similarity.schema",
+                description="gold_occupation_similarity_daily has required columns",
+                fn=lambda: check_table_schema_contains(
+                    spark, occ_similarity_fqn, OCCUPATION_SIMILARITY_DAILY_REQUIRED
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_similarity.partition_non_empty",
+                description=f"occ_similarity partition ({ingestion_date}, {country}) non-empty",
+                fn=lambda: _check_partition_non_empty(
+                    spark,
+                    occ_similarity_fqn,
+                    ingestion_date=ingestion_date,
+                    country=country,
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_similarity.positive_counts",
+                description="Count columns non-negative",
+                fn=lambda: _check_positive_counts(
+                    spark,
+                    occ_similarity_fqn,
+                    gold_schema.SIMILARITY_COUNT_COLS,
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_similarity.no_duplicates",
+                description=f"No duplicate ({', '.join(gold_schema.OCCUPATION_SIMILARITY_KEY)})",
+                fn=lambda: _check_no_duplicate_keys(
+                    spark,
+                    occ_similarity_fqn,
+                    gold_schema.OCCUPATION_SIMILARITY_KEY,
+                    "no_duplicates",
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_similarity.lineage",
+                description="Gold lineage columns present",
+                fn=lambda: _check_lineage_present(spark, occ_similarity_fqn),
+            ),
+        ]
+    )
+
+    # ── gold_occupation_transition_daily ──
+    checks.extend(
+        [
+            NamedCheck(
+                name="gold.occ_transition.table_exists",
+                description=f"Table {occ_transition_fqn} exists",
+                fn=lambda: check_table_exists(spark, occ_transition_fqn),
+            ),
+            NamedCheck(
+                name="gold.occ_transition.non_empty",
+                description=f"Table {occ_transition_fqn} is non-empty",
+                fn=lambda: check_table_non_empty(spark, occ_transition_fqn),
+            ),
+            NamedCheck(
+                name="gold.occ_transition.schema",
+                description="gold_occupation_transition_daily has required columns",
+                fn=lambda: check_table_schema_contains(
+                    spark, occ_transition_fqn, OCCUPATION_TRANSITION_DAILY_REQUIRED
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_transition.partition_non_empty",
+                description=f"occ_transition partition ({ingestion_date}, {country}) non-empty",
+                fn=lambda: _check_partition_non_empty(
+                    spark,
+                    occ_transition_fqn,
+                    ingestion_date=ingestion_date,
+                    country=country,
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_transition.positive_counts",
+                description="Count columns non-negative",
+                fn=lambda: _check_positive_counts(
+                    spark,
+                    occ_transition_fqn,
+                    gold_schema.TRANSITION_COUNT_COLS,
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_transition.no_duplicates",
+                description=f"No duplicate ({', '.join(gold_schema.OCCUPATION_TRANSITION_KEY)})",
+                fn=lambda: _check_no_duplicate_keys(
+                    spark,
+                    occ_transition_fqn,
+                    gold_schema.OCCUPATION_TRANSITION_KEY,
+                    "no_duplicates",
+                ),
+            ),
+            NamedCheck(
+                name="gold.occ_transition.lineage",
+                description="Gold lineage columns present",
+                fn=lambda: _check_lineage_present(spark, occ_transition_fqn),
             ),
         ]
     )

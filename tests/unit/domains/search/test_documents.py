@@ -65,9 +65,13 @@ class TestDocumentBuildersRegistry:
         "build_skill_emerging_documents",
         "build_occupation_market_documents",
         "build_skill_demand_segments_documents",
+        "build_occupation_profile_documents",
+        "build_skill_profile_documents",
+        "build_occupation_similarity_documents",
+        "build_occupation_transition_documents",
     ]
 
-    def test_all_eight_registered(self) -> None:
+    def test_all_twelve_registered(self) -> None:
         assert set(DOCUMENT_BUILDERS.keys()) == set(self.EXPECTED_KEYS)
 
     def test_all_are_callable(self) -> None:

@@ -367,6 +367,146 @@ SKILL_DEMAND_SEGMENTS_DAILY_META = DashboardDatasetMeta(
 )
 
 
+# ── Career Navigation metadata ───────────────────────────────────────────
+
+OCCUPATION_PROFILE_DAILY_META = DashboardDatasetMeta(
+    key="occupation_profile_daily",
+    index_suffix="occupation-profile-daily",
+    data_view_title="Skill Radar \u2014 Occupation Profiles",
+    time_field="ingestion_date",
+    label="Occupation Profiles",
+    description="Canonical occupation cards with demand, salary, and skill breakdowns",
+    default_sort_field="matched_jobs_count",
+    fields=(
+        FieldMeta("ingestion_date", "Ingestion Date", "time"),
+        FieldMeta("country", "Country", "dimension"),
+        FieldMeta("esco_occupation_concept_uri", "Occupation URI", "identifier"),
+        FieldMeta(
+            "esco_occupation_preferred_label",
+            "Occupation",
+            "dimension",
+            agg_field="esco_occupation_preferred_label.raw",
+        ),
+        FieldMeta("matched_jobs_count", "Matched Jobs", "metric"),
+        FieldMeta("distinct_companies_count", "Companies", "metric"),
+        FieldMeta("distinct_locations_count", "Locations", "metric"),
+        FieldMeta("avg_salary_mean", "Avg Salary", "metric"),
+        FieldMeta("related_skills_count", "Related Skills", "metric"),
+        FieldMeta("gold_run_id", "Gold Run ID", "meta"),
+        FieldMeta("gold_generated_at_utc", "Gold Generated At", "meta"),
+        FieldMeta("esco_version", "ESCO Version", "meta"),
+        FieldMeta("esco_lang", "ESCO Language", "meta"),
+    ),
+)
+
+SKILL_PROFILE_DAILY_META = DashboardDatasetMeta(
+    key="skill_profile_daily",
+    index_suffix="skill-profile-daily",
+    data_view_title="Skill Radar \u2014 Skill Profiles",
+    time_field="ingestion_date",
+    label="Skill Profiles",
+    description="Canonical skill cards with demand, salary, and occupation context",
+    default_sort_field="jobs_count",
+    fields=(
+        FieldMeta("ingestion_date", "Ingestion Date", "time"),
+        FieldMeta("country", "Country", "dimension"),
+        FieldMeta("esco_skill_concept_uri", "Skill URI", "identifier"),
+        FieldMeta(
+            "esco_skill_preferred_label",
+            "Skill",
+            "dimension",
+            agg_field="esco_skill_preferred_label.raw",
+        ),
+        FieldMeta("skill_type", "Skill Type", "dimension"),
+        FieldMeta("jobs_count", "Jobs Count", "metric"),
+        FieldMeta("companies_count", "Companies", "metric"),
+        FieldMeta("locations_count", "Locations", "metric"),
+        FieldMeta("avg_salary_mean", "Avg Salary", "metric"),
+        FieldMeta("gold_run_id", "Gold Run ID", "meta"),
+        FieldMeta("gold_generated_at_utc", "Gold Generated At", "meta"),
+        FieldMeta("esco_version", "ESCO Version", "meta"),
+        FieldMeta("esco_lang", "ESCO Language", "meta"),
+    ),
+)
+
+OCCUPATION_SIMILARITY_DAILY_META = DashboardDatasetMeta(
+    key="occupation_similarity_daily",
+    index_suffix="occupation-similarity-daily",
+    data_view_title="Skill Radar \u2014 Occupation Similarity",
+    time_field="ingestion_date",
+    label="Occupation Similarity",
+    description="Pairwise occupation similarity based on ESCO skill-set overlap",
+    default_sort_field="similarity_score",
+    fields=(
+        FieldMeta("ingestion_date", "Ingestion Date", "time"),
+        FieldMeta("country", "Country", "dimension"),
+        FieldMeta("source_occupation_uri", "Source Occupation URI", "identifier"),
+        FieldMeta(
+            "source_occupation_label",
+            "Source Occupation",
+            "dimension",
+            agg_field="source_occupation_label.raw",
+        ),
+        FieldMeta("target_occupation_uri", "Target Occupation URI", "identifier"),
+        FieldMeta(
+            "target_occupation_label",
+            "Target Occupation",
+            "dimension",
+            agg_field="target_occupation_label.raw",
+        ),
+        FieldMeta("similarity_score", "Similarity Score", "metric"),
+        FieldMeta("shared_skill_count", "Shared Skills", "metric"),
+        FieldMeta("shared_essential_skill_count", "Shared Essential", "metric"),
+        FieldMeta("shared_optional_skill_count", "Shared Optional", "metric"),
+        FieldMeta("source_skill_count", "Source Skills", "metric"),
+        FieldMeta("target_skill_count", "Target Skills", "metric"),
+        FieldMeta("gold_run_id", "Gold Run ID", "meta"),
+        FieldMeta("gold_generated_at_utc", "Gold Generated At", "meta"),
+        FieldMeta("esco_version", "ESCO Version", "meta"),
+        FieldMeta("esco_lang", "ESCO Language", "meta"),
+    ),
+)
+
+OCCUPATION_TRANSITION_DAILY_META = DashboardDatasetMeta(
+    key="occupation_transition_daily",
+    index_suffix="occupation-transition-daily",
+    data_view_title="Skill Radar \u2014 Occupation Transitions",
+    time_field="ingestion_date",
+    label="Occupation Transitions",
+    description="Career transition guidance with skill gap analysis and difficulty scoring",
+    default_sort_field="transition_difficulty_score",
+    default_sort_order="asc",
+    fields=(
+        FieldMeta("ingestion_date", "Ingestion Date", "time"),
+        FieldMeta("country", "Country", "dimension"),
+        FieldMeta("from_occupation_uri", "From Occupation URI", "identifier"),
+        FieldMeta(
+            "from_occupation_label",
+            "From Occupation",
+            "dimension",
+            agg_field="from_occupation_label.raw",
+        ),
+        FieldMeta("to_occupation_uri", "To Occupation URI", "identifier"),
+        FieldMeta(
+            "to_occupation_label",
+            "To Occupation",
+            "dimension",
+            agg_field="to_occupation_label.raw",
+        ),
+        FieldMeta("similarity_score", "Similarity", "metric"),
+        FieldMeta("missing_skill_count", "Missing Skills", "metric"),
+        FieldMeta("missing_essential_skill_count", "Missing Essential", "metric"),
+        FieldMeta("transition_difficulty_score", "Difficulty", "metric"),
+        FieldMeta("salary_delta_mean", "Salary Delta", "metric"),
+        FieldMeta("jobs_delta", "Jobs Delta", "metric"),
+        FieldMeta("gold_run_id", "Gold Run ID", "meta"),
+        FieldMeta("gold_generated_at_utc", "Gold Generated At", "meta"),
+        FieldMeta("esco_version", "ESCO Version", "meta"),
+        FieldMeta("esco_lang", "ESCO Language", "meta"),
+    ),
+)
+
+
 # ── Registries ────────────────────────────────────────────────────────────
 
 DASHBOARD_DATASETS: dict[str, DashboardDatasetMeta] = {
@@ -376,6 +516,11 @@ DASHBOARD_DATASETS: dict[str, DashboardDatasetMeta] = {
     "skill_emerging_daily": SKILL_EMERGING_DAILY_META,
     "occupation_market_daily": OCCUPATION_MARKET_DAILY_META,
     "skill_demand_segments_daily": SKILL_DEMAND_SEGMENTS_DAILY_META,
+    # Career Navigation datasets
+    "occupation_profile_daily": OCCUPATION_PROFILE_DAILY_META,
+    "skill_profile_daily": SKILL_PROFILE_DAILY_META,
+    "occupation_similarity_daily": OCCUPATION_SIMILARITY_DAILY_META,
+    "occupation_transition_daily": OCCUPATION_TRANSITION_DAILY_META,
 }
 
 PRIMARY_DASHBOARD_DATASETS: list[str] = [
@@ -383,6 +528,7 @@ PRIMARY_DASHBOARD_DATASETS: list[str] = [
     "salary_by_skill_daily",
     "occupation_skill_graph",
     "skill_emerging_daily",
+    "occupation_profile_daily",
 ]
 
 

@@ -183,6 +183,10 @@ EXPECTED_DASHBOARDS: list[dict[str, str]] = [
         "id": "skillradar-dash-emerging-signals",
         "title": "Skill Radar / Emerging Skills & Market Signals",
     },
+    {
+        "id": "skillradar-dash-career-navigation",
+        "title": "Skill Radar / Career Navigation Explorer",
+    },
 ]
 
 # Data view IDs for validation (prefix-dependent, built at runtime)
@@ -193,6 +197,11 @@ EXPECTED_DATA_VIEW_SUFFIXES: list[str] = [
     "skill-emerging-daily",
     "occupation-market-daily",
     "skill-demand-segments-daily",
+    # Career Navigation datasets
+    "occupation-profile-daily",
+    "skill-profile-daily",
+    "occupation-similarity-daily",
+    "occupation-transition-daily",
 ]
 
 
