@@ -303,3 +303,141 @@ EMERGING_SCORE_COLS: list[str] = [
     "novelty_score",
     "emerging_composite_score",
 ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Career Navigation table contracts
+# ═══════════════════════════════════════════════════════════════════════════
+
+OCCUPATION_PROFILE_DAILY_REQUIRED: list[str] = [
+    "ingestion_date",
+    "country",
+    esco_occupation("concept_uri"),
+    esco_occupation("concept_uri_uuid"),
+    esco_occupation("preferred_label"),
+    "occupation_search_text",
+    "matched_jobs_count",
+    "distinct_companies_count",
+    "distinct_locations_count",
+    "avg_salary_mean",
+    "top_essential_skills_json",
+    "top_optional_skills_json",
+    "top_companies_json",
+    "related_skills_count",
+    *GOLD_LINEAGE_COLS,
+]
+
+SKILL_PROFILE_DAILY_REQUIRED: list[str] = [
+    "ingestion_date",
+    "country",
+    esco_skill("concept_uri"),
+    esco_skill("concept_uri_uuid"),
+    esco_skill("preferred_label"),
+    "skill_type",
+    "skill_search_text",
+    "jobs_count",
+    "companies_count",
+    "locations_count",
+    "avg_salary_mean",
+    "top_occupations_json",
+    "top_companies_json",
+    *GOLD_LINEAGE_COLS,
+]
+
+OCCUPATION_SIMILARITY_DAILY_REQUIRED: list[str] = [
+    "ingestion_date",
+    "country",
+    "source_occupation_uri",
+    "source_occupation_label",
+    "target_occupation_uri",
+    "target_occupation_label",
+    "similarity_score",
+    "shared_skill_count",
+    "shared_essential_skill_count",
+    "shared_optional_skill_count",
+    "source_skill_count",
+    "target_skill_count",
+    *GOLD_LINEAGE_COLS,
+]
+
+OCCUPATION_TRANSITION_DAILY_REQUIRED: list[str] = [
+    "ingestion_date",
+    "country",
+    "from_occupation_uri",
+    "from_occupation_label",
+    "to_occupation_uri",
+    "to_occupation_label",
+    "similarity_score",
+    "shared_skills_json",
+    "missing_skills_json",
+    "missing_essential_skills_json",
+    "missing_optional_skills_json",
+    "missing_skill_count",
+    "missing_essential_skill_count",
+    "transition_difficulty_score",
+    "from_avg_salary_mean",
+    "to_avg_salary_mean",
+    "salary_delta_mean",
+    "from_jobs_count",
+    "to_jobs_count",
+    "jobs_delta",
+    *GOLD_LINEAGE_COLS,
+]
+
+
+# ── Composite keys ────────────────────────────────────────────────────
+
+OCCUPATION_PROFILE_KEY: list[str] = [
+    esco_occupation("concept_uri"),
+    "country",
+    "ingestion_date",
+]
+
+SKILL_PROFILE_KEY: list[str] = [
+    esco_skill("concept_uri"),
+    "country",
+    "ingestion_date",
+]
+
+OCCUPATION_SIMILARITY_KEY: list[str] = [
+    "source_occupation_uri",
+    "target_occupation_uri",
+    "country",
+    "ingestion_date",
+]
+
+OCCUPATION_TRANSITION_KEY: list[str] = [
+    "from_occupation_uri",
+    "to_occupation_uri",
+    "country",
+    "ingestion_date",
+]
+
+
+# ── Count columns ─────────────────────────────────────────────────────
+
+OCCUPATION_PROFILE_COUNT_COLS: list[str] = [
+    "matched_jobs_count",
+    "distinct_companies_count",
+    "distinct_locations_count",
+    "related_skills_count",
+]
+
+SKILL_PROFILE_COUNT_COLS: list[str] = [
+    "jobs_count",
+    "companies_count",
+    "locations_count",
+]
+
+SIMILARITY_COUNT_COLS: list[str] = [
+    "shared_skill_count",
+    "shared_essential_skill_count",
+    "shared_optional_skill_count",
+    "source_skill_count",
+    "target_skill_count",
+]
+
+TRANSITION_COUNT_COLS: list[str] = [
+    "missing_skill_count",
+    "missing_essential_skill_count",
+]

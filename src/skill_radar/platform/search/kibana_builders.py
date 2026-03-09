@@ -842,6 +842,127 @@ def _build_emerging_signals(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Dashboard E — Career Navigation Explorer
+# ═══════════════════════════════════════════════════════════════════════════
+
+_CAREER_NAV_SLUG = "career-navigation"
+
+
+def _build_career_navigation(
+    meta: DashboardDatasetMeta,
+    data_view_id: str,
+) -> tuple[list[LensVisualizationObject], DashboardObject]:
+    """Build the Career Navigation Explorer dashboard suite.
+
+    Uses occupation_profile_daily as primary data view. Panels:
+    0. KPI: total occupation profiles
+    1. Bar: top 20 occupations by matched jobs
+    2. Bar: top 20 occupations by average salary
+    3. Table: occupation profile details
+    """
+    slug = _CAREER_NAV_SLUG
+    occ_agg = meta.get_field("esco_occupation_preferred_label").aggregation_field
+    vises: list[LensVisualizationObject] = []
+    panels: list[DashboardPanel] = []
+
+    # ── 0. KPI: Total Occupation Profiles ─────────────────────────────
+    cols = {**_col_count("c1", "Total Occupation Profiles")}
+    state = _build_lens_state(_LAYER, cols, _metric_vis(_LAYER, "c1"), data_view_id=data_view_id)
+    vis = LensVisualizationObject(
+        id=_vis_id(slug, "kpi-total-profiles"),
+        title="Career Navigation \u2014 Total Occupation Profiles",
+        description="Total canonical occupation profiles available",
+        visualization_type="lnsMetric",
+        state=state,
+        data_view_id=data_view_id,
+    )
+    vises.append(vis)
+    panels.append(DashboardPanel(f"{slug}-p0", vis.id, "lens", x=0, y=0, w=16, h=8))
+
+    # ── 1. Bar: Top 20 Occupations by Jobs ────────────────────────────
+    cols = {
+        **_col_terms("c1", occ_agg, "Occupation", size=20, order_by_col="c2"),
+        **_col_sum("c2", "matched_jobs_count", "Matched Jobs"),
+    }
+    state = _build_lens_state(
+        _LAYER,
+        cols,
+        _xy_vis(_LAYER, "c1", ["c2"], "bar_horizontal"),
+        data_view_id=data_view_id,
+    )
+    vis = LensVisualizationObject(
+        id=_vis_id(slug, "top-occ-jobs-bar"),
+        title="Career Navigation \u2014 Top Occupations by Demand",
+        description="Top 20 occupations ranked by matched job postings",
+        visualization_type="lnsXY",
+        state=state,
+        data_view_id=data_view_id,
+    )
+    vises.append(vis)
+    panels.append(DashboardPanel(f"{slug}-p1", vis.id, "lens", x=0, y=8, w=24, h=14))
+
+    # ── 2. Bar: Top 20 Occupations by Salary ──────────────────────────
+    cols = {
+        **_col_terms("c1", occ_agg, "Occupation", size=20, order_by_col="c2"),
+        **_col_average("c2", "avg_salary_mean", "Avg Salary"),
+    }
+    state = _build_lens_state(
+        _LAYER,
+        cols,
+        _xy_vis(_LAYER, "c1", ["c2"], "bar_horizontal"),
+        data_view_id=data_view_id,
+    )
+    vis = LensVisualizationObject(
+        id=_vis_id(slug, "top-occ-salary-bar"),
+        title="Career Navigation \u2014 Top Occupations by Salary",
+        description="Top 20 occupations ranked by average salary",
+        visualization_type="lnsXY",
+        state=state,
+        data_view_id=data_view_id,
+    )
+    vises.append(vis)
+    panels.append(DashboardPanel(f"{slug}-p2", vis.id, "lens", x=24, y=8, w=24, h=14))
+
+    # ── 3. Table: Occupation Profile Details ──────────────────────────
+    cols = {
+        **_col_terms("c1", occ_agg, "Occupation", size=50, order_by_col="c2"),
+        **_col_sum("c2", "matched_jobs_count", "Jobs"),
+        **_col_sum("c3", "distinct_companies_count", "Companies"),
+        **_col_average("c4", "avg_salary_mean", "Avg Salary"),
+        **_col_sum("c5", "related_skills_count", "Related Skills"),
+    }
+    state = _build_lens_state(
+        _LAYER,
+        cols,
+        _datatable_vis(_LAYER, ["c1", "c2", "c3", "c4", "c5"]),
+        data_view_id=data_view_id,
+    )
+    vis = LensVisualizationObject(
+        id=_vis_id(slug, "occ-profile-table"),
+        title="Career Navigation \u2014 Occupation Profile Details",
+        description="Occupation profiles with demand, salary, and skill metrics",
+        visualization_type="lnsDatatable",
+        state=state,
+        data_view_id=data_view_id,
+    )
+    vises.append(vis)
+    panels.append(DashboardPanel(f"{slug}-p3", vis.id, "lens", x=0, y=22, w=48, h=16))
+
+    # ── Dashboard composition ─────────────────────────────────────────
+    dashboard = DashboardObject(
+        id=_dash_id(slug),
+        title="Skill Radar / Career Navigation Explorer",
+        description="Occupation profiles, similarity, and transition guidance",
+        panels=panels,
+        time_restore=True,
+        time_from="now-30d",
+        time_to="now",
+    )
+
+    return vises, dashboard
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Dashboard builder registry
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -850,6 +971,7 @@ _DASHBOARD_BUILDERS: dict[str, tuple[str, Any]] = {
     "salary_by_skill_daily": (_SALARY_SLUG, _build_salary_intelligence),
     "occupation_skill_graph": (_OCC_SKILL_SLUG, _build_occ_skill_graph),
     "skill_emerging_daily": (_EMERGING_SLUG, _build_emerging_signals),
+    "occupation_profile_daily": (_CAREER_NAV_SLUG, _build_career_navigation),
 }
 
 

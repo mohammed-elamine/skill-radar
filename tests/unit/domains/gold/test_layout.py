@@ -53,6 +53,22 @@ class TestLakeLayoutGoldHelpers:
         fqn = layout.gold_skill_demand_segments_daily_fqn()
         assert fqn == "sr.sr_gold.gold_skill_demand_segments_daily"
 
+    def test_occupation_profile_daily_fqn(self, layout: LakeLayout) -> None:
+        fqn = layout.gold_occupation_profile_daily_fqn()
+        assert fqn == "sr.sr_gold.gold_occupation_profile_daily"
+
+    def test_skill_profile_daily_fqn(self, layout: LakeLayout) -> None:
+        fqn = layout.gold_skill_profile_daily_fqn()
+        assert fqn == "sr.sr_gold.gold_skill_profile_daily"
+
+    def test_occupation_similarity_daily_fqn(self, layout: LakeLayout) -> None:
+        fqn = layout.gold_occupation_similarity_daily_fqn()
+        assert fqn == "sr.sr_gold.gold_occupation_similarity_daily"
+
+    def test_occupation_transition_daily_fqn(self, layout: LakeLayout) -> None:
+        fqn = layout.gold_occupation_transition_daily_fqn()
+        assert fqn == "sr.sr_gold.gold_occupation_transition_daily"
+
     def test_all_gold_fqns_are_unique(self, layout: LakeLayout) -> None:
         fqns = {
             layout.gold_job_skill_matches_fqn(),
@@ -63,8 +79,12 @@ class TestLakeLayoutGoldHelpers:
             layout.gold_skill_emerging_daily_fqn(),
             layout.gold_occupation_market_daily_fqn(),
             layout.gold_skill_demand_segments_daily_fqn(),
+            layout.gold_occupation_profile_daily_fqn(),
+            layout.gold_skill_profile_daily_fqn(),
+            layout.gold_occupation_similarity_daily_fqn(),
+            layout.gold_occupation_transition_daily_fqn(),
         }
-        assert len(fqns) == 8
+        assert len(fqns) == 12
 
     def test_all_gold_fqns_use_gold_namespace(self, layout: LakeLayout) -> None:
         for method_name in (
@@ -76,6 +96,10 @@ class TestLakeLayoutGoldHelpers:
             "gold_skill_emerging_daily_fqn",
             "gold_occupation_market_daily_fqn",
             "gold_skill_demand_segments_daily_fqn",
+            "gold_occupation_profile_daily_fqn",
+            "gold_skill_profile_daily_fqn",
+            "gold_occupation_similarity_daily_fqn",
+            "gold_occupation_transition_daily_fqn",
         ):
             fqn = getattr(layout, method_name)()
             parts = fqn.split(".")

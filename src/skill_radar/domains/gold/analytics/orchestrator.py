@@ -45,8 +45,12 @@ from ..matching.models import GoldAnalyticsResult
 from .emerging_skills import compute_skill_emerging_daily
 from .occupation_kpis import compute_occupation_skill_graph
 from .occupation_market import compute_occupation_market_daily
+from .occupation_profiles import compute_occupation_profile_daily
+from .occupation_similarity import compute_occupation_similarity_daily
+from .occupation_transitions import compute_occupation_transition_daily
 from .salary_kpis import compute_salary_by_skill_daily
 from .skill_kpis import compute_skill_demand_daily
+from .skill_profiles import compute_skill_profile_daily
 from .skill_segments import compute_skill_demand_segments
 
 if TYPE_CHECKING:
@@ -344,15 +348,202 @@ def run_gold_analytics(
                 exc_info=True,
             )
 
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 8 — Occupation profiles  (soft-fail: career navigation)
+        # ══════════════════════════════════════════════════════════════════
+        try:
+            t0 = _phase_start("Compute occupation profiles")
+
+            occ_profile = compute_occupation_profile_daily(
+                occ_matches,
+                skill_matches,
+                spark.read.table(salary_fqn).where(partition_filter),
+                occupations_df,
+                relations_df,
+                jobs_df,
+                ingestion_date=ingestion_date,
+                country=country,
+                config=cfg.gold_analytics.career_nav,
+            )
+
+            # Add lineage columns
+            occ_profile = (
+                occ_profile.withColumn(gold_schema.gold_meta("run_id"), F.lit(resolved_run_id))
+                .withColumn(
+                    gold_schema.gold_meta("generated_at_utc"),
+                    F.lit(generated_at).cast("timestamp"),
+                )
+                .withColumn("esco_version", F.lit(esco_version))
+                .withColumn("esco_lang", F.lit(esco_lang))
+            )
+
+            occ_profile_fqn = layout.gold_occupation_profile_daily_fqn()
+            _write_gold_table(occ_profile, occ_profile_fqn, spark)
+
+            result.occupation_profile_rows = (
+                spark.read.table(occ_profile_fqn).where(partition_filter).count()
+            )
+
+            _phase_done("Compute occupation profiles", t0)
+        except Exception:
+            logger.warning(
+                "Phase 8 (occupation profiles) failed — skipping. Core analytics are unaffected.",
+                exc_info=True,
+            )
+
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 9 — Skill profiles  (soft-fail: career navigation)
+        # ══════════════════════════════════════════════════════════════════
+        try:
+            t0 = _phase_start("Compute skill profiles")
+
+            skill_profile = compute_skill_profile_daily(
+                spark.read.table(skill_demand_fqn).where(partition_filter),
+                spark.read.table(salary_fqn).where(partition_filter),
+                skill_matches,
+                occ_matches,
+                skills_df,
+                jobs_df,
+                ingestion_date=ingestion_date,
+                country=country,
+                config=cfg.gold_analytics.career_nav,
+            )
+
+            skill_profile = (
+                skill_profile.withColumn(gold_schema.gold_meta("run_id"), F.lit(resolved_run_id))
+                .withColumn(
+                    gold_schema.gold_meta("generated_at_utc"),
+                    F.lit(generated_at).cast("timestamp"),
+                )
+                .withColumn("esco_version", F.lit(esco_version))
+                .withColumn("esco_lang", F.lit(esco_lang))
+            )
+
+            skill_profile_fqn = layout.gold_skill_profile_daily_fqn()
+            _write_gold_table(skill_profile, skill_profile_fqn, spark)
+
+            result.skill_profile_rows = (
+                spark.read.table(skill_profile_fqn).where(partition_filter).count()
+            )
+
+            _phase_done("Compute skill profiles", t0)
+        except Exception:
+            logger.warning(
+                "Phase 9 (skill profiles) failed — skipping. Core analytics are unaffected.",
+                exc_info=True,
+            )
+
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 10 — Occupation similarity  (soft-fail: career navigation)
+        # ══════════════════════════════════════════════════════════════════
+        _similarity_df = None
+        try:
+            t0 = _phase_start("Compute occupation similarity")
+
+            _similarity_df = compute_occupation_similarity_daily(
+                relations_df,
+                occupations_df,
+                ingestion_date=ingestion_date,
+                country=country,
+                config=cfg.gold_analytics.career_nav,
+            )
+
+            _similarity_df = (
+                _similarity_df.withColumn(gold_schema.gold_meta("run_id"), F.lit(resolved_run_id))
+                .withColumn(
+                    gold_schema.gold_meta("generated_at_utc"),
+                    F.lit(generated_at).cast("timestamp"),
+                )
+                .withColumn("esco_version", F.lit(esco_version))
+                .withColumn("esco_lang", F.lit(esco_lang))
+            )
+
+            sim_fqn = layout.gold_occupation_similarity_daily_fqn()
+            _write_gold_table(_similarity_df, sim_fqn, spark)
+
+            result.occupation_similarity_rows = (
+                spark.read.table(sim_fqn).where(partition_filter).count()
+            )
+
+            # Re-read for transitions
+            _similarity_df = spark.read.table(sim_fqn).where(partition_filter)
+
+            _phase_done("Compute occupation similarity", t0)
+        except Exception:
+            logger.warning(
+                "Phase 10 (occupation similarity) failed — skipping. "
+                "Core analytics are unaffected.",
+                exc_info=True,
+            )
+
+        # ══════════════════════════════════════════════════════════════════
+        # Phase 11 — Occupation transitions  (soft-fail: career navigation)
+        # ══════════════════════════════════════════════════════════════════
+        try:
+            if _similarity_df is None:
+                logger.info("Skipping Phase 11 (occupation transitions) — similarity unavailable.")
+            else:
+                t0 = _phase_start("Compute occupation transitions")
+
+                # Try to read occupation profiles for market context
+                _occ_profile_ctx = None
+                try:
+                    _occ_profile_ctx = spark.read.table(
+                        layout.gold_occupation_profile_daily_fqn()
+                    ).where(partition_filter)
+                except Exception:
+                    logger.debug("Occupation profiles not available for transition context.")
+
+                transitions = compute_occupation_transition_daily(
+                    relations_df,
+                    occupations_df,
+                    skills_df,
+                    _similarity_df,
+                    _occ_profile_ctx,
+                    ingestion_date=ingestion_date,
+                    country=country,
+                    config=cfg.gold_analytics.career_nav,
+                )
+
+                transitions = (
+                    transitions.withColumn(gold_schema.gold_meta("run_id"), F.lit(resolved_run_id))
+                    .withColumn(
+                        gold_schema.gold_meta("generated_at_utc"),
+                        F.lit(generated_at).cast("timestamp"),
+                    )
+                    .withColumn("esco_version", F.lit(esco_version))
+                    .withColumn("esco_lang", F.lit(esco_lang))
+                )
+
+                trans_fqn = layout.gold_occupation_transition_daily_fqn()
+                _write_gold_table(transitions, trans_fqn, spark)
+
+                result.occupation_transition_rows = (
+                    spark.read.table(trans_fqn).where(partition_filter).count()
+                )
+
+                _phase_done("Compute occupation transitions", t0)
+        except Exception:
+            logger.warning(
+                "Phase 11 (occupation transitions) failed — skipping. "
+                "Core analytics are unaffected.",
+                exc_info=True,
+            )
+
         logger.info(
             "Gold analytics complete: demand=%d salary=%d graph=%d "
-            "emerging=%d occ_market=%d segments=%d",
+            "emerging=%d occ_market=%d segments=%d "
+            "occ_profile=%d skill_profile=%d similarity=%d transitions=%d",
             result.skill_demand_rows,
             result.salary_by_skill_rows,
             result.occupation_skill_graph_rows,
             result.skill_emerging_rows,
             result.occupation_market_rows,
             result.skill_demand_segments_rows,
+            result.occupation_profile_rows,
+            result.skill_profile_rows,
+            result.occupation_similarity_rows,
+            result.occupation_transition_rows,
         )
 
     except Exception as exc:

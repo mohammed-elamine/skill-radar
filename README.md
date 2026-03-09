@@ -1,374 +1,378 @@
 # Skill Radar
 
-Skill Radar is a production-oriented data engineering project that analyzes job market data to extract actionable insights about technology demand, salary trends, and skill evolution.
+Skill Radar is a production-oriented data engineering platform that analyzes job market data to extract actionable insights about technology demand, salary trends, skill evolution, and career navigation.
 
-The system ingests fresh job postings daily, processes them through a structured lakehouse pipeline, and exposes reliable KPIs for analysis and visualization.
+The system ingests fresh job postings daily from the Adzuna API, cross-references them with the ESCO European skills taxonomy, processes everything through a structured lakehouse pipeline (Bronze → Silver → Gold), and serves the results via Elasticsearch + Kibana dashboards.
 
-This project is built as part of a Big Data master thesis with a strong emphasis on:
-
-- Reproducibility
-- Clean architecture
-- Data reliability
-- Automated validation
-- CI/CD discipline
-- Production-style workflow
+Built as part of a Big Data master thesis at Télécom Paris with a strong emphasis on reproducibility, clean architecture, data reliability, and production-style workflow.
 
 ---
 
-# Architecture Overview
+## Architecture Overview
 
-Skill Radar follows a **modern lakehouse architecture**:
-
-- **Object Storage**: MinIO (S3-compatible)
-- **Table Format**: Apache Iceberg
-- **Compute Engine**: Apache Spark
-- **Orchestration**: Apache Airflow 2.9.3 (DockerOperator)
-- **Serving (future)**: Elasticsearch + Kibana
-
-The lake follows a structured layer model:
-
-- `bronze` → raw ingestion
-- `silver` → cleaned, normalized
-- `gold` → analytical datasets
-
-Iceberg warehouse location:
-```bash
-s3a://skillradar-lake/warehouse
+```
+┌─────────────┐    ┌─────────────┐
+│  Adzuna API │    │  ESCO ZIP   │
+└──────┬──────┘    └──────┬──────┘
+       │                  │
+       ▼                  ▼
+┌──────────────────────────────────┐
+│          Bronze (raw)            │  ← Apache Spark + Iceberg
+├──────────────────────────────────┤
+│          Silver (clean)          │
+├──────────────────────────────────┤
+│          Gold (analytics)        │  ← 12 analytical datasets
+└──────────────┬───────────────────┘
+               │
+               ▼
+┌──────────────────────────────────┐
+│   Elasticsearch + Kibana         │  ← dashboards, search
+└──────────────────────────────────┘
 ```
 
+| Component | Technology |
+|-----------|-----------|
+| Object Storage | MinIO (S3-compatible) |
+| Table Format | Apache Iceberg |
+| Compute Engine | Apache Spark 3.5 |
+| Orchestration | Apache Airflow 2.9.3 (DockerOperator) |
+| Search & Dashboards | Elasticsearch 8.13 + Kibana 8.13 |
+| Package Manager | uv |
+
+Data lake: `s3a://skillradar-lake/warehouse` (MinIO)
+
 ---
 
-# Repository Structure
-```bash
+## Repository Structure
+
+```
 skill-radar/
-│
-├── src/skill_radar/         # Core package (business logic)
+├── src/skill_radar/         # Core package (business logic, CLI)
 ├── dags/                    # Airflow DAGs (orchestration only)
 │   ├── _shared/             # Shared orchestration helpers
 │   ├── adzuna_daily_pipeline.py
-│   └── esco_manual_pipeline.py
-├── jobs/                    # Spark jobs (batch processing)
-├── configs/                 # Spark configuration
+│   ├── esco_manual_pipeline.py
+│   └── full_pipeline.py     # End-to-end DAG
+├── jobs/                    # Spark jobs
+├── configs/                 # Spark + Kibana configuration
 ├── docker/                  # Custom Docker images
-│   ├── airflow/             # Airflow image
-│   └── spark/               # Spark image
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── scripts/                 # Environment & tooling scripts
-├── docs/                    # Documentation
-├── docker-compose.yml       # Local lakehouse + Airflow stack
-├── pyproject.toml
-├── uv.lock
-├── Makefile
-└── .github/workflows/
+│   ├── airflow/             # Airflow image (2.9.3 + DockerOperator)
+│   └── spark/               # Spark image (3.5.7 + Iceberg + uv)
+├── tests/                   # Unit + integration tests
+├── data/incoming/esco/      # ESCO dropzone (place ZIP here)
+├── docker-compose.yml       # Full stack (core + airflow + search profiles)
+├── Makefile                 # Single developer interface (~80 targets)
+└── pyproject.toml
 ```
 
 ---
 
-# System Requirements
+## System Requirements
 
-- Python 3.11+
-- Docker + Docker Compose
-- uv (dependency manager)
+| Requirement | Version |
+|-------------|---------|
+| Python | 3.11+ |
+| Docker + Docker Compose | Latest (v2) |
+| uv | Latest |
+| Disk space | ~4 GB (Docker images + data) |
+| RAM | 8 GB recommended (Spark + ES) |
 
 ---
 
-# Quick Start
+## Quick Start (5-minute Demo)
 
-## 1. Install uv
+### Prerequisites
+
+1. **Install uv** (Python package manager):
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   # or: brew install uv
+   ```
+
+2. **Get Adzuna API credentials** — register at [developer.adzuna.com](https://developer.adzuna.com/) (free tier).
+
+3. **Download the ESCO dataset** — download the French CSV ZIP from the [ESCO portal](https://esco.ec.europa.eu/en/use-esco/download).
+
+### Step 1 — Configure environment
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+cp .env.example .env
 ```
 
-or
-
-```bash
-brew install uv
+Edit `.env` and fill in your Adzuna credentials:
+```dotenv
+ADZUNA_APP_ID=your_id
+ADZUNA_APP_KEY=your_key
 ```
 
-## 2. Bootstrap the Project
+All other values have working defaults for local development (MinIO credentials, ports, etc.).
+
+### Step 2 — Bootstrap the project
+
 ```bash
 make bootstrap
 ```
 
-This installs:
-- Dependencies
-- Pre-commit hooks
-- Validates environment
+This installs Python dependencies, the `skill-radar` CLI, pre-commit hooks, and validates the local environment.
 
-## 3. Start the Lakehouse Stack
+### Step 3 — Place the ESCO dataset
+
 ```bash
-make infra
+mkdir -p data/incoming/esco
+cp ~/Downloads/ESCO_dataset_*.zip data/incoming/esco/esco.zip
 ```
 
-This will:
-- Start MinIO
-- Start Spark
-- Run Iceberg smoke test
+The Spark container will see this file via a bind mount at `/opt/skillradar/incoming/esco/esco.zip`.
 
-You can inspect MinIO at http://localhost:9000 with credentials from `.env`.
+### Step 4 — Run the full pipeline
 
-## 4. Validate Everything
 ```bash
-make doctor
+make nuke         # factory reset (clean slate)
+make up-all       # start ALL services (MinIO, Spark, Airflow, ES, Kibana)
+make run-all      # run the entire pipeline end-to-end
 ```
 
-Checks:
-- Local tooling
-- Docker services
-- Iceberg connectivity
-- Spark job execution
+`make run-all` executes 7 phases in sequence:
 
-## Infrastructure Validation
+| Phase | What it does |
+|-------|-------------|
+| 1. Infrastructure | Provisions S3 buckets + Iceberg namespaces |
+| 2. Search stack | Starts Elasticsearch + Kibana, waits for health |
+| 3. ESCO pipeline | Uploads ZIP → Bronze extraction → Silver normalization |
+| 4. Adzuna pipeline | API extraction → Bronze → Silver (deduplicated) |
+| 5. Gold pipeline | Skill matching + 12 analytical datasets |
+| 6. Health wait | Ensures ES + Kibana are healthy |
+| 7. Search pipeline | Exports Gold to ES → deploys Kibana dashboards → validates |
 
-Validate infrastructure health from the host:
+When complete, open **http://localhost:5601** to explore the Kibana dashboards.
+
+### One-liner (factory reset + full pipeline)
+
 ```bash
-make validate-infra      # Host scope: MinIO connectivity, bucket existence
-make validate-infra-all  # Full scope: includes Spark/Iceberg checks (runs in container)
-```
-
-**Note:** Host validation targets (`validate-infra`, `apply-infra-host`, `run-infra-host`) automatically source `.env` to load credentials. Required environment variables:
-
-| Variable | Description |
-|----------|-------------|
-| `AWS_ACCESS_KEY_ID` | MinIO/S3 access key (matches `MINIO_ROOT_USER`) |
-| `AWS_SECRET_ACCESS_KEY` | MinIO/S3 secret key (matches `MINIO_ROOT_PASSWORD`) |
-
-If `.env` is missing or credentials are not set, you'll see:
-```
-Missing AWS credentials: set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or source .env
+make nuke up-all run-all
 ```
 
 ---
 
-# Development Workflow
+## Service Endpoints
 
-During development
-```bash
-make quality
-```
+Once `make up-all` has started all services:
 
-Before pushing
-```bash
-make ci
-```
-
-CI runs:
-- Lint
-- Format check
-- Type-check
-- Unit tests
-- Integration tests
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| MinIO Console | http://localhost:9001 | `minioadmin` / `minioadmin` |
+| Airflow Web UI | http://localhost:8085 | `admin` / `admin` |
+| Elasticsearch | http://localhost:9200 | — |
+| Kibana | http://localhost:5601 | — |
 
 ---
 
-# ESCO Dataset Ingestion
+## Makefile — Key Commands
 
-The ESCO (European Skills, Competences, Qualifications and Occupations) dataset requires manual download due to authentication requirements on the official portal.
+The Makefile is the single entry point for all operations. Run `make help` for the full list (~80 targets).
 
-## Workflow
+### Lifecycle
 
-### Step 1: Download ESCO ZIP
+| Command | Description |
+|---------|-------------|
+| `make up-all` | Start ALL services (core + Airflow + ES/Kibana) |
+| `make nuke` | Factory reset: stop everything, remove all volumes and logs |
+| `make run-all` | Full end-to-end pipeline (infra → ESCO → Adzuna → Gold → Search) |
+| `make up` | Start core services only (MinIO + Spark) |
+| `make down` | Stop core services |
+| `make ps` | Show running containers |
 
-Download the ESCO dataset manually from the [official portal](https://esco.ec.europa.eu/).
+### Individual Pipelines
 
-### Step 2: Place in Dropzone
+| Command | Description |
+|---------|-------------|
+| `make run-esco-bronze` | ESCO: upload → bronze → validate |
+| `make run-esco-silver` | ESCO: silver formatting → validate |
+| `make run-adzuna` | Adzuna: bronze → silver (full pipeline) |
+| `make run-gold` | Gold: matching → analytics → validate |
+| `make run-search` | Search: export to ES → Kibana dashboards → validate |
 
-Move the downloaded ZIP file to the host dropzone directory:
+### Search Stack
+
+| Command | Description |
+|---------|-------------|
+| `make search-up` | Start Elasticsearch + Kibana |
+| `make search-down` | Stop Elasticsearch + Kibana |
+| `make search-reset` | Stop + remove ES data volumes |
+| `make bootstrap-kibana` | Deploy Kibana data views + dashboards |
+
+### Airflow
+
+| Command | Description |
+|---------|-------------|
+| `make airflow-up` | Start Airflow (scheduler + webserver) |
+| `make airflow-down` | Stop Airflow |
+| `make airflow-dags-list` | List discovered DAGs |
+| `make airflow-trigger-adzuna` | Trigger Adzuna daily DAG |
+| `make airflow-trigger-esco` | Trigger ESCO manual DAG |
+
+### Development
+
+| Command | Description |
+|---------|-------------|
+| `make check` | Run all code checks (lint + format + types + unit tests) |
+| `make fix` | Auto-fix lint and format issues |
+| `make ci` | Full CI pipeline |
+| `make doctor` | Validate local tooling + Docker infra |
+
+---
+
+## Pipeline Details
+
+### ESCO Dataset (European Skills Taxonomy)
+
+ESCO provides the reference taxonomy of skills, occupations, and their relationships. It requires a manual download from the [official portal](https://esco.ec.europa.eu/).
 
 ```bash
-# Create dropzone if it doesn't exist
-mkdir -p ./data/incoming/esco
+# Place the ZIP in the dropzone
+cp ~/Downloads/ESCO_v1.2.1.zip data/incoming/esco/esco.zip
 
-# Move your downloaded file (any of these locations work):
-mv ~/Downloads/ESCO_v1.2.1.zip ./data/incoming/esco/esco.zip
-# Or with language suffix:
-mv ~/Downloads/ESCO_v1.2.1.zip ./data/incoming/esco/esco_fr.zip
+# Run the full ESCO pipeline (or let make run-all do it)
+make upload-esco VERSION=v1.2.1 ESCO_LANG=fr EXTRA=--force
+make run-esco-bronze VERSION=v1.2.1 ESCO_LANG=fr
+make run-esco-silver VERSION=v1.2.1 ESCO_LANG=fr
 ```
-
-The container will see this file at `/opt/skillradar/incoming/esco/esco.zip`.
-
-### Step 3: Upload to Landing Zone
-
-```bash
-make upload-esco VERSION=v1.2.1 LANG=fr
-```
-
-This runs inside the Spark container and uploads the artifact to the MinIO landing bucket.
-
-### Step 4: Run Bronze Extraction
-
-```bash
-make bronze-esco VERSION=v1.2.1 LANG=fr
-```
-
-### Step 5: Validate
-
-```bash
-make validate-esco-bronze VERSION=v1.2.1 LANG=fr
-```
-
-## File Resolution
 
 The CLI searches for ESCO files in this order:
-1. `{dropzone}/esco/esco.zip`
-2. `{dropzone}/esco/esco_{lang}.zip`
-3. `{dropzone}/esco/{version}/esco.zip`
-4. `{dropzone}/esco/{version}/{lang}/esco.zip`
+1. `data/incoming/esco/esco.zip`
+2. `data/incoming/esco/esco_{lang}.zip`
+3. `data/incoming/esco/{version}/esco.zip`
+4. `data/incoming/esco/{version}/{lang}/esco.zip`
 
-## Alternative: Direct File Upload (Host)
+### Adzuna Job Postings (Live API)
 
-If you prefer to run the upload on the host (requires AWS credentials configured):
-
-```bash
-make upload-esco-local FILE=path/to/esco.zip VERSION=v1.2.1 LANG=fr
-```
-
----
-
-# Adzuna Job Postings Ingestion
-
-Adzuna provides a live REST API for job postings. The pipeline fetches job data daily, captures it in Bronze (raw fidelity), then normalizes it to Silver for analytics.
-
-## Prerequisites
-
-| Variable | Description |
-|----------|-------------|
-| `ADZUNA_APP_ID` | Adzuna API application ID |
-| `ADZUNA_APP_KEY` | Adzuna API application key |
-
-Register at [Adzuna Developer Portal](https://developer.adzuna.com/) and add credentials to `.env`.
-
-## Bronze — Raw API Extraction
-
-Fetches job postings from the Adzuna Search API and persists them as-is to Iceberg tables. Each API field is preserved in a `raw_payload_json` column for full fidelity. Bronze is append-only — re-running the same day adds duplicate rows (Silver handles deduplication).
+Adzuna provides a REST API for job postings. Requires `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` in `.env`.
 
 ```bash
-# Default: France, default_fr preset
-make adzuna-bronze
+# Run the full Adzuna pipeline
+make run-adzuna ADZUNA_COUNTRY=fr
 
-# Custom country and pagination
+# Or run steps individually
 make adzuna-bronze ADZUNA_COUNTRY=fr ADZUNA_MAX_PAGES=5
-
-# Validate bronze tables
-make validate-adzuna-bronze
+make adzuna-silver ADZUNA_COUNTRY=fr
 ```
 
-**Tables created:**
-- `sr.sr_bronze.adzuna_jobs_raw` — one row per job posting, partitioned by `(ingestion_date, country)`
-- `sr.sr_bronze.adzuna_request_log_raw` — one row per API page request (lineage/observability)
+**Bronze tables** (raw, append-only):
+- `sr.sr_bronze.adzuna_jobs_raw` — one row per job posting
+- `sr.sr_bronze.adzuna_request_log_raw` — one row per API request (lineage)
 
-## Silver — Normalization & Deduplication
+**Silver table** (deduplicated, typed):
+- `sr.sr_silver.adzuna_jobs` — partitioned by `(country, ingestion_date)`
 
-Reads from Bronze, applies type parsing, location hierarchy derivation, salary computation, and deduplication by `(country, job_id)` keeping the latest extraction.
+### Gold Analytics
+
+Gold produces 12 analytical datasets by cross-referencing Adzuna job postings with the ESCO taxonomy:
+
+| Dataset | Description |
+|---------|-------------|
+| `skill_demand_daily` | Skill demand frequency and trends |
+| `salary_by_skill_daily` | Salary statistics per skill |
+| `occupation_skill_graph` | Occupation ↔ skill relationships |
+| `job_skill_matches` | Job-to-skill matching results |
+| `job_occupation_matches` | Job-to-occupation matching results |
+| `skill_emerging_daily` | Emerging skill detection |
+| `occupation_market_daily` | Occupation market indicators |
+| `skill_demand_segments_daily` | Skill demand by contract/location segments |
+| `occupation_profile_daily` | Rich occupation profiles (career navigation) |
+| `skill_profile_daily` | Detailed skill profiles |
+| `occupation_similarity_daily` | Occupation similarity matrix |
+| `occupation_transition_daily` | Career transition pathways |
 
 ```bash
-# Default: all countries from latest Bronze
-make adzuna-silver
-
-# Specific country and date
-make adzuna-silver ADZUNA_COUNTRY=fr ADZUNA_INGESTION_DATE=2025-01-15
-
-# Validate silver tables
-make validate-adzuna-silver
+make run-gold GOLD_COUNTRY=fr
 ```
 
-**Table created:**
-- `sr.sr_silver.adzuna_jobs` — deduplicated, typed job facts, partitioned by `(country, ingestion_date)`
+### Search & Dashboards
 
-## Full Pipeline
-
-Run Bronze extraction → validation → Silver formatting → validation in one command:
+All 12 Gold datasets are exported to Elasticsearch indices and served via Kibana dashboards.
 
 ```bash
-make run-adzuna
+make run-search SEARCH_COUNTRY=fr
 ```
 
-## Scope & Cadence
-
-- **Countries:** France (`fr`) initially; extensible via `contract.yaml`
-- **Refresh cadence:** Daily (Bronze appends; Silver overwrites per partition)
-- **Extraction presets:** Defined in `src/skill_radar/domains/adzuna/contract/contract.yaml`
+Open Kibana at **http://localhost:5601** to explore dashboards for skill demand, salary trends, career navigation, and more.
 
 ---
 
-# Lakehouse Layout
+## Airflow Orchestration
 
-Storage contract:
-```bash
-data/<layer>/<domain>/<source>/<entity>/<version_or_dt>/<partitions...>/
-```
-
-Examples:
-- `data/bronze/labour_market/esco/skills/version=2025-11-15/lang=fr/...`
-- `data/silver/labour_market/adzuna/job_postings/dt=2026-02-27/country=gb/...`
-- `data/gold/skill_radar/skill_index/version=2025-11-15/lang=fr/...`
-
-See: [docs/architecture/lakehouse_layout.md](docs/architecture/lakehouse_layout.md)
-
----
-
-# Environment Variables
-
-Create `.env` from `.env.example` and fill in the required values (e.g., `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`).
-
-These are only required for live ingestion (not infra setup).
-
----
-
-# Design Principles
-
-**Skill Radar** follows production-style discipline:
-- Deterministic builds (`uv.lock`)
-- Strict CI gates
-- Dockerized infrastructure
-- Iceberg transactional storage
-- Clear separation of unit vs integration tests
-- Makefile as single developer interface
-
----
-
-# Airflow Orchestration
-
-Airflow acts as the **control-plane only** — every task launches an ephemeral Docker container from the Spark runtime image via `DockerOperator`. No business logic exists in DAG files.
-
-### Quick Start
-
-```bash
-# Start Airflow (builds custom image on first run)
-make airflow-up
-
-# Check DAGs are loaded
-make airflow-dags-list
-
-# Trigger pipelines
-make airflow-trigger-adzuna AIRFLOW_ADZUNA_DATE=2025-01-15
-make airflow-trigger-esco AIRFLOW_ESCO_VERSION=v1.2.1 AIRFLOW_ESCO_LANG=fr
-```
+Airflow acts as the **control-plane only** — every task launches an ephemeral Docker container from the Spark image via `DockerOperator`. No business logic runs inside Airflow.
 
 ### DAGs
 
 | DAG | Schedule | Description |
 |-----|----------|-------------|
-| `adzuna_daily_pipeline` | `0 6 * * *` | Bronze → Silver → Gold with validation |
-| `esco_manual_pipeline` | Manual | Landing → Bronze → Silver (+ optional Gold) |
+| `adzuna_daily_pipeline` | `0 6 * * *` | Adzuna Bronze → Silver → Gold → Search |
+| `esco_manual_pipeline` | Manual | ESCO Upload → Bronze → Silver (+ optional Gold) |
+| `full_pipeline` | Manual | End-to-end: Infra → ESCO + Adzuna (parallel) → Gold → Search |
 
-Web UI: http://localhost:8085 (`admin`/`admin`)
+The `full_pipeline` DAG runs ESCO and Adzuna branches in parallel, then converges at Gold:
 
-See: [docs/airflow_orchestration_guide.md](docs/airflow_orchestration_guide.md)
+```
+infra ──┬── esco_landing → esco_bronze → esco_silver ──┬── gold ── search
+        └── adzuna_bronze → adzuna_silver ─────────────┘
+```
+
+### Web UI
+
+http://localhost:8085 — credentials: `admin` / `admin`
+
+Trigger the full pipeline from the UI: click `full_pipeline` → Trigger DAG w/ Config → set parameters → Trigger.
 
 ---
 
-# Current Milestone
+## Lakehouse Layout
 
-- **Milestone 1** — Lakehouse Infrastructure Bootstrap
-- **Milestone 2** — Bronze Ingestion (ESCO + Adzuna)
-- **Milestone 3** — Airflow Orchestration (DockerOperator)
+```
+s3a://skillradar-lake/data/<layer>/<domain>/<source>/<entity>/...
+```
+
+| Layer | Purpose | Examples |
+|-------|---------|---------|
+| Bronze | Raw ingestion (full fidelity) | `adzuna_jobs_raw`, ESCO CSVs |
+| Silver | Cleaned, normalized, deduplicated | `adzuna_jobs`, ESCO skills/occupations |
+| Gold | Analytical datasets (cross-domain) | 12 datasets (see above) |
 
 ---
 
-# License
+## Environment Variables
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Copy `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ADZUNA_APP_ID` | Yes (for ingestion) | — | Adzuna API application ID |
+| `ADZUNA_APP_KEY` | Yes (for ingestion) | — | Adzuna API application key |
+| `MINIO_ROOT_USER` | No | `minioadmin` | MinIO access key |
+| `MINIO_ROOT_PASSWORD` | No | `minioadmin` | MinIO secret key |
+| `AWS_ACCESS_KEY_ID` | No | `minioadmin` | S3 access key (for host-side commands) |
+| `AWS_SECRET_ACCESS_KEY` | No | `minioadmin` | S3 secret key (for host-side commands) |
+| `AIRFLOW_WEB_PORT` | No | `8085` | Airflow UI port |
+| `ES_PORT` | No | `9200` | Elasticsearch port |
+| `KIBANA_PORT` | No | `5601` | Kibana port |
+
+---
+
+## Design Principles
+
+- **Deterministic builds** — `uv.lock` for exact dependency pinning
+- **Strict CI gates** — lint, format, types, unit tests on every change
+- **Dockerized everything** — all compute runs in containers
+- **Iceberg transactional storage** — ACID guarantees, time travel, schema evolution
+- **Makefile as single interface** — one entry point for all operations
+- **DAGs are orchestration only** — no business logic in Airflow; all processing via `skill-radar` CLI
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

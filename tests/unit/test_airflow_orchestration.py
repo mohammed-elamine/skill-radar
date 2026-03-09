@@ -386,9 +386,13 @@ class TestDAGImports:
         """esco_manual_pipeline DAG is discovered."""
         assert "esco_manual_pipeline" in dagbag.dags
 
+    def test_full_pipeline_loaded(self, dagbag):
+        """full_pipeline DAG is discovered."""
+        assert "full_pipeline" in dagbag.dags
+
     def test_total_dag_count(self, dagbag):
-        """Exactly 2 DAGs are discovered."""
-        assert len(dagbag.dags) == 2
+        """Exactly 3 DAGs are discovered."""
+        assert len(dagbag.dags) == 3
 
 
 # ===========================================================================
@@ -496,6 +500,94 @@ class TestDAGStructure:
     def test_esco_dag_tags(self, esco_dag):
         assert "skill-radar" in esco_dag.tags
         assert "esco" in esco_dag.tags
+
+    # -- Full Pipeline DAG --------------------------------------------------
+
+    @pytest.fixture(scope="class")
+    def full_dag(self, dagbag):
+        return dagbag.dags["full_pipeline"]
+
+    def test_full_dag_id(self, full_dag):
+        assert full_dag.dag_id == "full_pipeline"
+
+    def test_full_dag_schedule_none(self, full_dag):
+        """Full pipeline DAG is manual-only."""
+        assert full_dag.schedule_interval is None
+
+    def test_full_dag_task_ids(self, full_dag):
+        """Full DAG has the expected task ids."""
+        task_ids = {t.task_id for t in full_dag.tasks}
+        expected = {
+            "infra_unit",
+            "esco_landing_unit",
+            "esco_bronze_unit",
+            "esco_silver_unit",
+            "adzuna_bronze_unit",
+            "adzuna_silver_unit",
+            "gold_unit",
+            "should_run_search",
+            "search_unit",
+        }
+        assert task_ids == expected
+
+    def test_full_dag_infra_fans_out(self, full_dag):
+        """infra_unit fans out to both esco_landing_unit and adzuna_bronze_unit."""
+        task_map = {t.task_id: t for t in full_dag.tasks}
+        infra = task_map["infra_unit"]
+        downstream_ids = {t.task_id for t in infra.downstream_list}
+        assert "esco_landing_unit" in downstream_ids
+        assert "adzuna_bronze_unit" in downstream_ids
+
+    def test_full_dag_adzuna_chain(self, full_dag):
+        """adzuna_bronze_unit → adzuna_silver_unit."""
+        task_map = {t.task_id: t for t in full_dag.tasks}
+        bronze = task_map["adzuna_bronze_unit"]
+        assert "adzuna_silver_unit" in {t.task_id for t in bronze.downstream_list}
+
+    def test_full_dag_esco_chain(self, full_dag):
+        """esco_landing_unit → esco_bronze_unit → esco_silver_unit."""
+        task_map = {t.task_id: t for t in full_dag.tasks}
+        landing = task_map["esco_landing_unit"]
+        bronze = task_map["esco_bronze_unit"]
+        assert "esco_bronze_unit" in {t.task_id for t in landing.downstream_list}
+        assert "esco_silver_unit" in {t.task_id for t in bronze.downstream_list}
+
+    def test_full_dag_gold_waits_for_both_branches(self, full_dag):
+        """gold_unit has both esco_silver_unit and adzuna_silver_unit as upstreams."""
+        task_map = {t.task_id: t for t in full_dag.tasks}
+        gold = task_map["gold_unit"]
+        upstream_ids = {t.task_id for t in gold.upstream_list}
+        assert "esco_silver_unit" in upstream_ids
+        assert "adzuna_silver_unit" in upstream_ids
+
+    def test_full_dag_search_gated(self, full_dag):
+        """search_unit is gated by should_run_search."""
+        task_map = {t.task_id: t for t in full_dag.tasks}
+        search = task_map["search_unit"]
+        upstream_ids = {t.task_id for t in search.upstream_list}
+        assert "should_run_search" in upstream_ids
+
+    def test_full_dag_has_params(self, full_dag):
+        """Full DAG defines all expected params."""
+        param_keys = set(full_dag.params.keys())
+        expected = {
+            "country",
+            "ingestion_date",
+            "esco_version",
+            "esco_lang",
+            "adzuna_preset",
+            "run_search",
+            "job_limit",
+        }
+        assert expected.issubset(param_keys)
+
+    def test_full_dag_catchup_disabled(self, full_dag):
+        assert full_dag.catchup is False
+
+    def test_full_dag_tags(self, full_dag):
+        assert "skill-radar" in full_dag.tags
+        assert "full" in full_dag.tags
+        assert "e2e" in full_dag.tags
 
 
 # ===========================================================================

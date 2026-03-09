@@ -14,11 +14,15 @@ from skill_radar.config.models import PlatformSettings
 from skill_radar.domains.gold import schema as gold_schema
 from skill_radar.platform.validate.checks.gold import (
     OCCUPATION_MATCHES_REQUIRED,
+    OCCUPATION_PROFILE_DAILY_REQUIRED,
+    OCCUPATION_SIMILARITY_DAILY_REQUIRED,
     OCCUPATION_SKILL_GRAPH_REQUIRED,
+    OCCUPATION_TRANSITION_DAILY_REQUIRED,
     SALARY_BY_SKILL_DAILY_REQUIRED,
     SKILL_DEMAND_DAILY_REQUIRED,
     SKILL_EMERGING_DAILY_REQUIRED,
     SKILL_MATCHES_REQUIRED,
+    SKILL_PROFILE_DAILY_REQUIRED,
     get_gold_checks,
 )
 from skill_radar.platform.validate.models import ExitCode, NamedCheck
@@ -101,7 +105,7 @@ class TestGoldCheckFactory:
         ns_checks = [c for c in checks if "namespace" in c.name]
         assert len(ns_checks) >= 1
 
-    def test_table_exists_checks_for_all_8_tables(
+    def test_table_exists_checks_for_all_12_tables(
         self, mock_spark: MagicMock, config: PlatformSettings
     ) -> None:
         checks = get_gold_checks(
@@ -113,7 +117,7 @@ class TestGoldCheckFactory:
             esco_lang="fr",
         )
         exists_checks = [c for c in checks if "table_exists" in c.name]
-        assert len(exists_checks) == 8
+        assert len(exists_checks) == 12
 
 
 class TestRequiredColumns:
@@ -151,6 +155,17 @@ class TestRequiredColumns:
         assert gold_schema.esco_occupation("concept_uri") in OCCUPATION_SKILL_GRAPH_REQUIRED
         assert gold_schema.esco_skill("concept_uri") in OCCUPATION_SKILL_GRAPH_REQUIRED
         assert gold_schema.matched("jobs_count") in OCCUPATION_SKILL_GRAPH_REQUIRED
+
+    def test_career_nav_required_are_schema_aliases(self) -> None:
+        """Career Navigation required lists are exact schema aliases."""
+        assert OCCUPATION_PROFILE_DAILY_REQUIRED is gold_schema.OCCUPATION_PROFILE_DAILY_REQUIRED
+        assert SKILL_PROFILE_DAILY_REQUIRED is gold_schema.SKILL_PROFILE_DAILY_REQUIRED
+        assert (
+            OCCUPATION_SIMILARITY_DAILY_REQUIRED is gold_schema.OCCUPATION_SIMILARITY_DAILY_REQUIRED
+        )
+        assert (
+            OCCUPATION_TRANSITION_DAILY_REQUIRED is gold_schema.OCCUPATION_TRANSITION_DAILY_REQUIRED
+        )
 
 
 class TestGoldExitCode:
