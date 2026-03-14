@@ -1,20 +1,4 @@
-"""DockerOperator factory for Skill Radar Airflow tasks.
-
-This module is the **single source of truth** for how the platform
-launches ephemeral Spark containers from Airflow.  Every pipeline
-task should be created via :func:`make_skill_radar_task` rather than
-constructing a ``DockerOperator`` directly — this guarantees
-consistent image, network, mounts, environment, and lifecycle
-settings across all DAGs.
-
-Design rationale — coarse stage units
---------------------------------------
-Each DockerOperator task corresponds to a **stage unit** that bundles
-a processing step AND its validation inside a single Spark session
-(e.g. ``skill-radar run adzuna-bronze`` performs extraction + bronze
-validation).  This halves the number of containers per DAG run while
-keeping the application-layer modular.
-"""
+"""DockerOperator factory for Skill Radar Airflow tasks."""
 
 from __future__ import annotations
 
@@ -35,10 +19,6 @@ from _shared.config import (
     SPARK_POOL,
     get_task_environment,
 )
-
-# ---------------------------------------------------------------------------
-# Mount builder
-# ---------------------------------------------------------------------------
 
 # Resolve project root relative to the host.  When the scheduler runs
 # inside a Docker container the host project root must be provided
@@ -71,11 +51,6 @@ def _build_mounts() -> list[Mount]:
             )
         )
     return mounts
-
-
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
 
 
 def make_skill_radar_task(

@@ -1,28 +1,8 @@
 """ESCO skill label dimension — flat lookup table for candidate matching.
 
 Converts ESCO Silver skills into a flat label dimension with one row per
-label variant. This is the reference side of the candidate-based matching
-architecture:
-
-    job candidates (n-grams) ──equi-join──▶ label dimension
-
-The dimension is broadcast-safe for typical ESCO sizes (~14 000 skills,
-~60 000 label variants) and eliminates the need for cross-join + regex
-evaluation.
-
-Columns
--------
-- concept_uri:         ESCO skill concept URI
-- concept_uri_uuid:    UUID derived from the concept URI
-- preferred_label:     Canonical skill name
-- skill_type:          ESCO skill type (skill / knowledge / …)
-- reuse_level:         ESCO reuse level
-- label_value:         Original label text
-- label_normalized:    Lowercased, whitespace-collapsed label
-- label_type:          One of ``preferred``, ``alt``, ``hidden``
-- label_token_count:   Number of whitespace-delimited tokens in the
-                       normalized label (used by the candidate generator
-                       to cap n-gram size)
+label variant.  Broadcast-safe for typical ESCO sizes (~14k skills,
+~60k label variants).
 """
 
 from __future__ import annotations

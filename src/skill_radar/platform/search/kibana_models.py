@@ -1,16 +1,4 @@
-"""Typed models for Kibana saved objects.
-
-Provides dataclass-based representations for NDJSON serialization:
-
-- :class:`DataViewObject` — Kibana data view (``index-pattern``)
-- :class:`LensVisualizationObject` — Kibana Lens visualization
-- :class:`DashboardObject` — Kibana dashboard with panel layout
-- :class:`SavedSearchObject` — Kibana Discover saved search
-
-Each model serializes to the NDJSON line format expected by
-``POST /api/saved_objects/_import``.  All IDs are deterministic
-so that repeated generation produces identical artifacts.
-"""
+"""Typed models for Kibana saved objects (NDJSON serialization)."""
 
 from __future__ import annotations
 

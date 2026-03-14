@@ -1,26 +1,11 @@
 """Gold matching orchestrator — sequences skill and occupation matching.
 
-This module owns the sequencing of the Gold matching pipeline:
-
-1. Read & persist ESCO Silver dimensions (skills, occupations, relations).
-2. Read & persist Adzuna Silver daily job partition.
-3. Build & persist ESCO label dimension.
-4. Build job candidate phrases (bounded n-grams).
-5. Match jobs to skills via candidate equi-join.
-6. Match jobs to occupations (title + relation inference).
-7. Write Gold Iceberg tables with partition overwrite.
-
-Performance optimisations vs v1
---------------------------------
-- **Candidate equi-join** replaces broadcast cross-join + regex.
-- **Selective persistence** of reused intermediate DataFrames with
-  explicit ``unpersist()`` after consumption.
-- **Reduced eager actions**: only counts needed for final result
-  reporting or empty-partition early-exit are materialised.
-- **Structured phase timing** for observability.
-
-All table FQNs are resolved via :class:`LakeLayout`.  No hardcoded paths
-or table names.
+Sequences the Gold matching pipeline:
+1. Read & persist ESCO Silver dimensions and Adzuna Silver jobs
+2. Build ESCO label dimension and job candidate phrases
+3. Match jobs to skills via candidate equi-join
+4. Match jobs to occupations (title + relation inference)
+5. Write Gold Iceberg tables with partition overwrite
 """
 
 from __future__ import annotations

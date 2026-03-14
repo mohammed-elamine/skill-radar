@@ -1,14 +1,8 @@
 """Adzuna Bronze extraction — API → Iceberg raw capture.
 
-This module fetches Adzuna API results for a configured extraction preset
-and persists them to a Bronze Iceberg table with full lineage metadata.
-
-Bronze design principles:
-- Preserve raw fidelity — every API field is captured in ``raw_payload_json``.
-- Append-only — each run adds rows; Bronze never deletes history.
-- Duplicate runs on the same day produce duplicate rows in Bronze;
-  Silver handles deduplication.
-- Partitioned by ``ingestion_date`` and ``country``.
+Fetches Adzuna API results for a configured extraction preset and
+persists them to a Bronze Iceberg table with full lineage metadata.
+Partitioned by ``ingestion_date`` and ``country``.
 """
 
 from __future__ import annotations
@@ -43,12 +37,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
 # Explicit Spark schemas — prevents CANNOT_DETERMINE_TYPE when all values
 # in a column are None (e.g., salary_min, salary_max, latitude, longitude).
-# ---------------------------------------------------------------------------
-
 ADZUNA_JOBS_BRONZE_SCHEMA = StructType(
     [
         StructField("job_id", StringType(), nullable=False),
@@ -105,11 +95,6 @@ ADZUNA_REQUEST_LOG_BRONZE_SCHEMA = StructType(
 )
 
 
-# ---------------------------------------------------------------------------
-# Result data classes
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class BronzeRunResult:
     """Outcome of a Bronze extraction run."""
@@ -130,11 +115,6 @@ class BronzeRunResult:
 
     def summary_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-# ---------------------------------------------------------------------------
-# Row mapping — API JSON → Bronze flat row
-# ---------------------------------------------------------------------------
 
 
 def _map_job_to_bronze_row(
@@ -231,11 +211,6 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
-# ---------------------------------------------------------------------------
-# Iceberg write helpers
-# ---------------------------------------------------------------------------
-
-
 def _ensure_namespace(spark: SparkSession, layout: LakeLayout, layer: str) -> None:
     """Create the Iceberg namespace if it does not exist."""
     fqn = layout.iceberg_namespace(layer)
@@ -287,11 +262,6 @@ def _write_bronze_append(
         df.writeTo(table_fqn).append()
 
     return len(rows)
-
-
-# ---------------------------------------------------------------------------
-# Main extraction orchestrator
-# ---------------------------------------------------------------------------
 
 
 def run_bronze_extraction(
@@ -491,11 +461,6 @@ def run_bronze_extraction(
         logger.exception("Bronze extraction failed")
 
     return result
-
-
-# ---------------------------------------------------------------------------
-# Run summary upload (mirrors ESCO pattern)
-# ---------------------------------------------------------------------------
 
 
 def upload_run_summary(result: BronzeRunResult) -> None:

@@ -1,15 +1,8 @@
 """Served dataset registry — single source of truth for the search stage.
 
-Each entry declares:
-- A human-readable ``name``
-- The Elasticsearch index suffix (from config)
-- The method to retrieve the Gold Iceberg table FQN from ``LakeLayout``
-- The document builder function reference (by name in :mod:`.documents`)
-- The mapping key (in :mod:`skill_radar.platform.search.mappings`)
-
-This module is the **only** place where served datasets are enumerated.
-Adding or removing a dataset from the serving stage requires a single
-change here.
+Each entry declares index suffix, Gold table retrieval method, document
+builder, and mapping key.  The only place where served datasets are
+enumerated.
 """
 
 from __future__ import annotations

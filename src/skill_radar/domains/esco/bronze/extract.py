@@ -1,21 +1,8 @@
 """ESCO Bronze extraction — contract-driven CSV → Iceberg pipeline.
 
-This module contains the main extraction logic.  It is imported by the Spark
-entrypoint (``jobs/esco/bronze_esco_to_iceberg.py``) and by the CLI.
-
-Responsibilities
-----------------
-1. Resolve landing artifact keys via :class:`LakeLayout`.
-2. Download & extract CSVs from the landed ESCO ZIP.
-3. **Upload extracted CSVs to S3 staging** so Spark reads from ``s3a://``
-   (distributed-safe).
-4. Validate CSV columns and allowed values against the ESCO contract.
-5. Rename columns to snake_case with Bronze conventions (contract-driven).
-6. Add lineage columns (dataset, entity, version, lang, run_id, …).
-7. Write to Iceberg Bronze tables with partition-level idempotency.
-
-The module has **no** hardcoded bucket names, paths, or table names — it
-delegates everything to platform agents (:class:`LakeLayout`).
+Imported by the Spark entrypoint and by the CLI.  Resolves landing
+artifact keys via :class:`LakeLayout`, extracts CSVs, validates
+against the ESCO contract, and writes to Bronze Iceberg tables.
 """
 
 from __future__ import annotations

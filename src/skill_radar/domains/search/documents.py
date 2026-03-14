@@ -1,19 +1,4 @@
-"""Document builders — convert Spark rows to Elasticsearch documents.
-
-Each builder is a **pure function** that transforms a Spark Row into a
-flat dictionary ready for bulk indexing.  Document ``doc_id`` values are
-deterministic so reruns overwrite logically identical documents.
-
-Deterministic ID construction
------------------------------
-- skill demand:       ``{country}|{ingestion_date}|{skill_uri}``
-- salary by skill:    ``{country}|{ingestion_date}|{skill_uri}``
-- occupation graph:   ``{country}|{ingestion_date}|{occ_uri}|{skill_uri}``
-- job-skill matches:  ``{country}|{ingestion_date}|{job_id}|{skill_uri}``
-- job-occ matches:    ``{country}|{ingestion_date}|{job_id}|{occ_uri}|{method}``
-
-All ID values are hashed with SHA-256 and truncated to 20 hex chars.
-"""
+"""Document builders — convert Spark rows to Elasticsearch documents."""
 
 from __future__ import annotations
 

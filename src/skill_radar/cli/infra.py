@@ -1,9 +1,4 @@
-"""CLI commands for infrastructure operations.
-
-Provides provisioning and status commands:
-- skill-radar infra apply  (provision buckets + namespaces)
-- skill-radar infra status (read-only, delegates to validate infra)
-"""
+"""CLI commands for infrastructure provisioning and status."""
 
 from __future__ import annotations
 
@@ -30,19 +25,9 @@ from skill_radar.platform.validate.sinks import finalize_report
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Command group
-# ---------------------------------------------------------------------------
-
-
 @click.group("infra")
 def infra_group() -> None:
     """Infrastructure provisioning and status commands."""
-
-
-# ---------------------------------------------------------------------------
-# Apply (provision) command
-# ---------------------------------------------------------------------------
 
 
 @infra_group.command("apply")
@@ -129,11 +114,6 @@ def infra_apply(upload: bool, quiet: bool, skip_namespaces: bool, context: str |
         sys.exit(ExitCode.INFRA_FAILURE)
     else:
         sys.exit(ExitCode.OK)
-
-
-# ---------------------------------------------------------------------------
-# Status (read-only) command
-# ---------------------------------------------------------------------------
 
 
 @infra_group.command("status")

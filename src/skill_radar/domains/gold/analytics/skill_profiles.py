@@ -2,24 +2,6 @@
 
 Builds a canonical skill card per (ingestion_date, country, skill)
 from existing Gold tables and ESCO Silver dimensions.
-
-Inputs
-------
-- Gold skill-demand daily (partition)
-- Gold salary-by-skill daily (partition)
-- Gold job-skill matches (partition)
-- Gold job-occupation matches (partition)
-- ESCO Silver skills (dimension)
-- Adzuna Silver jobs (partition)
-
-Output
-------
-One row per skill with:
-- searchable text (preferred + alt + hidden labels)
-- demand metrics (jobs, companies, locations)
-- salary context
-- top occupations (JSON)
-- top companies (JSON)
 """
 
 from __future__ import annotations

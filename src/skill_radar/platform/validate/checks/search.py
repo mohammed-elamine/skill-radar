@@ -1,19 +1,4 @@
-"""Search-layer validation checks for Elasticsearch indices and Kibana.
-
-Health checks
-- Elasticsearch reachable
-- Cluster health ≥ yellow
-- Kibana reachable
-
-Per-index checks
-- Index/alias exists
-- Mapping contains critical fields with expected types
-- Document count > 0 for served partition
-- Required fields are populated (no null/empty on key identifiers)
-
-Consistency checks
-- Gold partition count vs indexed document count
-"""
+"""Search-layer validation checks for Elasticsearch indices and Kibana."""
 
 from __future__ import annotations
 

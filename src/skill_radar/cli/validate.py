@@ -1,15 +1,4 @@
-"""CLI commands for validation operations.
-
-Provides a thin wrapper around the core validation framework:
-- skill-radar validate infra
-- skill-radar validate esco-landing
-- skill-radar validate esco-bronze
-- skill-radar validate esco-bronze-e2e
-- skill-radar validate bronze (group validator)
-- skill-radar validate adzuna-bronze
-- skill-radar validate adzuna-silver
-- skill-radar validate gold
-"""
+"""CLI commands for validation operations."""
 
 from __future__ import annotations
 
@@ -34,19 +23,9 @@ from skill_radar.platform.validate.sinks import finalize_report
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Command group
-# ---------------------------------------------------------------------------
-
-
 @click.group("validate")
 def validate_group() -> None:
     """Validation commands for infrastructure and datasets."""
-
-
-# ---------------------------------------------------------------------------
-# Infrastructure validation
-# ---------------------------------------------------------------------------
 
 
 @validate_group.command("infra")
@@ -190,11 +169,6 @@ def validate_infra(upload: bool, quiet: bool, scope: str) -> None:
         sys.exit(ExitCode.INFRA_FAILURE)
 
 
-# ---------------------------------------------------------------------------
-# ESCO landing validation
-# ---------------------------------------------------------------------------
-
-
 @validate_group.command("esco-landing")
 @click.option("--version", required=True, help="Artifact version (e.g. v1.2.1)")
 @click.option("--lang", required=True, help="Language code (e.g. fr)")
@@ -230,11 +204,6 @@ def validate_esco_landing(version: str, lang: str, upload: bool, quiet: bool) ->
         sys.exit(ExitCode.OK)
     else:
         sys.exit(ExitCode.LANDING_FAILURE)
-
-
-# ---------------------------------------------------------------------------
-# ESCO bronze validation
-# ---------------------------------------------------------------------------
 
 
 @validate_group.command("esco-bronze")
@@ -315,11 +284,6 @@ def validate_esco_bronze(
         with contextlib.suppress(Exception):
             # Spark JVM may have crashed; ignore shutdown errors.
             spark.stop()
-
-
-# ---------------------------------------------------------------------------
-# ESCO bronze E2E validation (Spark-side only)
-# ---------------------------------------------------------------------------
 
 
 @validate_group.command("esco-bronze-e2e")
@@ -444,11 +408,6 @@ def validate_esco_bronze_e2e(
             spark.stop()
 
 
-# ---------------------------------------------------------------------------
-# Bronze group validation
-# ---------------------------------------------------------------------------
-
-
 @validate_group.command("bronze")
 @click.option("--dataset", default="esco", help="Dataset to validate (default: esco)")
 @click.option("--version", required=True, help="Artifact version")
@@ -482,11 +441,6 @@ def validate_bronze_group(
         upload=upload,
         quiet=quiet,
     )
-
-
-# ---------------------------------------------------------------------------
-# ESCO silver validation
-# ---------------------------------------------------------------------------
 
 
 @validate_group.command("esco-silver")
@@ -573,11 +527,6 @@ def validate_esco_silver(
     finally:
         with contextlib.suppress(Exception):
             spark.stop()
-
-
-# ---------------------------------------------------------------------------
-# Adzuna validation commands
-# ---------------------------------------------------------------------------
 
 
 @validate_group.command("adzuna-bronze")
@@ -702,11 +651,6 @@ def validate_adzuna_silver(country, ingestion_date, upload, quiet):
             spark.stop()
 
 
-# ---------------------------------------------------------------------------
-# Gold validation commands
-# ---------------------------------------------------------------------------
-
-
 @validate_group.command("gold")
 @click.option("--ingestion-date", "ingestion_date", required=True, help="Adzuna date YYYY-MM-DD.")
 @click.option("--country", required=True, help="Country code (e.g. fr).")
@@ -802,11 +746,6 @@ def validate_gold(
     finally:
         with contextlib.suppress(Exception):
             spark.stop()
-
-
-# ---------------------------------------------------------------------------
-# Search validation commands
-# ---------------------------------------------------------------------------
 
 
 @validate_group.command("search")

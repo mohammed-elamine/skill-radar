@@ -1,27 +1,12 @@
 """Gold analytics orchestrator — sequences KPI and graph computations.
 
 Reads Gold matching outputs and Adzuna Silver jobs to compute:
-1. Daily skill demand KPIs.
-2. Daily salary-by-skill KPIs.
-3. Occupation-skill graph with market evidence.
-4. Emerging-skill signals (momentum / acceleration / novelty).
-5. Occupation market daily analytics.
-6. Skill demand segments (ML / KMeans clustering).
-
-Phases 1-3 are **core** — any failure aborts the pipeline.
-Phases 4-6 are **enrichment** — they run with soft-fail semantics
-so a missing dependency or transient error never blocks the core
-pipeline.  A warning is logged and execution continues.
-
-Writes results to Gold Iceberg tables with partition overwrite.
-
-Performance optimisations vs v1
---------------------------------
-- **Selective persistence** of reused inputs (skill_matches, jobs_df)
-  with explicit ``unpersist()`` after consumption.
-- **Reduced eager actions**: only the final count per output table is
-  materialised — intermediate DataFrames are never counted.
-- **Structured phase timing** for observability.
+1. Daily skill demand KPIs
+2. Daily salary-by-skill KPIs
+3. Occupation-skill graph with market evidence
+4. Emerging-skill signals (enrichment, soft-fail)
+5. Occupation market daily analytics (enrichment, soft-fail)
+6. Skill demand segments via KMeans (enrichment, soft-fail)
 """
 
 from __future__ import annotations

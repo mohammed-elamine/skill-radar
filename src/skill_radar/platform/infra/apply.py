@@ -40,11 +40,6 @@ def _pyspark_available() -> bool:
         return False
 
 
-# ---------------------------------------------------------------------------
-# S3 bucket provisioning
-# ---------------------------------------------------------------------------
-
-
 def ensure_buckets(
     config: PlatformSettings,
     *,
@@ -155,11 +150,6 @@ def ensure_buckets(
             )
 
     return results
-
-
-# ---------------------------------------------------------------------------
-# Iceberg namespace provisioning
-# ---------------------------------------------------------------------------
 
 
 def _iceberg_catalog_configured(spark: SparkSession, catalog_name: str) -> bool:
@@ -279,11 +269,6 @@ def ensure_namespaces(
         )
 
     return results
-
-
-# ---------------------------------------------------------------------------
-# Combined apply operation
-# ---------------------------------------------------------------------------
 
 
 def apply_infra(

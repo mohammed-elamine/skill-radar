@@ -1,50 +1,17 @@
 """Gold schema — single source of truth for Gold table naming conventions.
 
-**Why this module exists**
+Defines naming conventions (callable namespaces) and table contracts
+(required columns, composite keys) consumed by both data producers
+and consumers.  Column prefixes prevent join ambiguity and provide
+provenance::
 
-Every Gold pipeline producer (matching, analytics) and every consumer
-(validation checks, downstream dashboards) must agree on column names.
-Scattering string literals across files leads to silent drift —
-a rename in one place silently breaks validation or analytics.
-
-This module defines **naming conventions** (callable namespaces) and
-the **table contracts** (required columns, composite keys, count columns)
-consumed by both data producers and data consumers.
-
-    ┌───────────────────┐
-    │   gold.schema     │  ← naming conventions + table contracts
-    │ (single source)   │
-    └─────────┬─────────┘
-              │ imported by
-    ┌─────────┴───────────────────────────┐
-    │                                     │
-    ▼                                     ▼
-  producers                          consumers
-  (matching, analytics)        (validation, dashboards)
-
-Naming conventions
-------------------
-Columns that represent an ESCO entity projected into Gold are prefixed
-with the entity namespace to avoid join ambiguity and provide provenance.
-Call the namespace with the field name to get the column name:
-
-    >>> esco_skill("concept_uri")          # → "esco_skill_concept_uri"
-    >>> esco_occupation("preferred_label")  # → "esco_occupation_preferred_label"
-    >>> matched("label")                   # → "matched_label"
-    >>> gold_meta("run_id")                # → "gold_run_id"
-
-Adding a new column only requires calling the convention at the usage
-site — no new constant needed. Changing a prefix propagates everywhere.
-
-Columns that carry no prefix convention (``job_id``, ``country``,
-``match_method``, ``match_score``, …) are used as plain string literals.
+    esco_skill("concept_uri")          # → "esco_skill_concept_uri"
+    esco_occupation("preferred_label")  # → "esco_occupation_preferred_label"
 """
 
 from __future__ import annotations
 
-# ═══════════════════════════════════════════════════════════════════════════
 # Namespace helper
-# ═══════════════════════════════════════════════════════════════════════════
 
 
 class _Namespace:
@@ -78,9 +45,7 @@ class _Namespace:
         return self._prefix
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # Naming conventions
-# ═══════════════════════════════════════════════════════════════════════════
 
 esco_skill = _Namespace(
     "esco_skill",
@@ -103,9 +68,7 @@ gold_meta = _Namespace(
 )
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # Lineage / partition columns (shared across all Gold tables)
-# ═══════════════════════════════════════════════════════════════════════════
 
 GOLD_LINEAGE_COLS: list[str] = [
     gold_meta("run_id"),  # gold_run_id
@@ -115,9 +78,7 @@ GOLD_LINEAGE_COLS: list[str] = [
 ]
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # Required columns per Gold table  (validation + documentation contracts)
-# ═══════════════════════════════════════════════════════════════════════════
 
 SKILL_MATCHES_REQUIRED: list[str] = [
     "job_id",
@@ -217,9 +178,7 @@ SKILL_DEMAND_SEGMENTS_DAILY_REQUIRED: list[str] = [
 ]
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # Composite key definitions  (deduplication + validation uniqueness checks)
-# ═══════════════════════════════════════════════════════════════════════════
 
 SKILL_MATCHES_KEY: list[str] = [
     "job_id",
@@ -274,9 +233,7 @@ SKILL_DEMAND_SEGMENTS_KEY: list[str] = [
 ]
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # Count-column sets  (non-negativity validation)
-# ═══════════════════════════════════════════════════════════════════════════
 
 DEMAND_COUNT_COLS: list[str] = [
     "jobs_count",
@@ -305,9 +262,7 @@ EMERGING_SCORE_COLS: list[str] = [
 ]
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # Career Navigation table contracts
-# ═══════════════════════════════════════════════════════════════════════════
 
 OCCUPATION_PROFILE_DAILY_REQUIRED: list[str] = [
     "ingestion_date",

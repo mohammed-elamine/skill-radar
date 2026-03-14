@@ -126,6 +126,8 @@ The Spark container will see this file via a bind mount at `/opt/skillradar/inco
 
 ### Step 4 — Run the full pipeline
 
+> Make sure `skill-radar` is installed and in your `PATH` (via `make bootstrap`), then run:
+
 ```bash
 make nuke         # factory reset (clean slate)
 make up-all       # start ALL services (MinIO, Spark, Airflow, ES, Kibana)
@@ -160,7 +162,7 @@ Once `make up-all` has started all services:
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| MinIO Console | http://localhost:9001 | `minioadmin` / `minioadmin` |
+| MinIO Console | http://localhost:9001 | `skillradar` / `skillradar-secret` |
 | Airflow Web UI | http://localhost:8085 | `admin` / `admin` |
 | Elasticsearch | http://localhost:9200 | — |
 | Kibana | http://localhost:5601 | — |
@@ -169,7 +171,7 @@ Once `make up-all` has started all services:
 
 ## Makefile — Key Commands
 
-The Makefile is the single entry point for all operations. Run `make help` for the full list (~80 targets).
+The Makefile is the single entry point for all operations. Run `make help` for the full list (~80 targets). See [docs/platform/command-reference.md](docs/platform/command-reference.md) for the complete CLI and Makefile reference.
 
 ### Lifecycle
 

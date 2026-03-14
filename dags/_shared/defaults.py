@@ -10,10 +10,6 @@ from datetime import timedelta
 
 from _shared.config import TASK_EXECUTION_TIMEOUT_SECONDS, TASK_RETRIES, TASK_RETRY_DELAY_SECONDS
 
-# ---------------------------------------------------------------------------
-# Default args applied to every task unless overridden
-# ---------------------------------------------------------------------------
-
 COMMON_DEFAULT_ARGS: dict = {
     "owner": "skill-radar",
     "retries": TASK_RETRIES,
@@ -21,11 +17,6 @@ COMMON_DEFAULT_ARGS: dict = {
     "execution_timeout": timedelta(seconds=TASK_EXECUTION_TIMEOUT_SECONDS),
     "depends_on_past": False,
 }
-
-
-# ---------------------------------------------------------------------------
-# Tag helpers
-# ---------------------------------------------------------------------------
 
 BASE_TAGS: list[str] = ["skill-radar"]
 

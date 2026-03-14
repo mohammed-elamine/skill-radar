@@ -1,18 +1,9 @@
-"""Kibana HTTP client — API layer for saved object operations.
+"""Kibana HTTP client — saved object API operations.
 
-Handles all HTTP communication with the Kibana Saved Objects API:
-
-- :func:`is_kibana_reachable` — health check
-- :func:`apply_data_views` — push data views (legacy, retained for compat)
-- :func:`import_saved_objects` — bulk import via ``_import`` API
-- :func:`get_saved_object` — fetch a single saved object
-- :func:`find_saved_objects` — search saved objects by type/title
-
-Asset *generation* is handled by
+Handles all HTTP communication with the Kibana Saved Objects API.
+Asset generation is handled by
 :mod:`~skill_radar.platform.search.kibana_assets` and
 :mod:`~skill_radar.platform.search.kibana_builders`.
-
-This file is the only place that makes HTTP calls to Kibana.
 """
 
 from __future__ import annotations

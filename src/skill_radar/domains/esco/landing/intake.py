@@ -1,17 +1,7 @@
 """ESCO artifact intake orchestrator (control plane).
 
-Orchestrates the full validated landing workflow:
-
-1. Load configuration and ESCO contract.
-2. Validate the ZIP against the contract.
-3. Compute SHA-256 checksum.
-4. Build the landing path via :class:`LakeLayout`.
-5. Check idempotency (existing object, checksum comparison).
-6. Upload ZIP to MinIO/S3.
-7. Build and upload the manifest.
-
-This module contains **no** direct path building, hardcoded config, or raw S3
-calls — everything is delegated to platform agents.
+Orchestrates the full validated landing workflow: contract validation,
+checksum computation, idempotency check, upload, and manifest generation.
 """
 
 from __future__ import annotations
@@ -41,11 +31,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Result model
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class IntakeResult:
     """Structured result of an intake operation."""
@@ -57,11 +42,6 @@ class IntakeResult:
     checksum: str = ""
     validation: ValidationResult | None = None
     error: str = ""
-
-
-# ---------------------------------------------------------------------------
-# Intake orchestrator
-# ---------------------------------------------------------------------------
 
 
 def run_intake(

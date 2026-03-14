@@ -22,11 +22,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Result models
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class Check:
     """A single validation check result."""
@@ -48,11 +43,6 @@ class ValidationResult:
         self.checks.append(check)
         if not check.passed:
             self.passed = False
-
-
-# ---------------------------------------------------------------------------
-# Individual validators
-# ---------------------------------------------------------------------------
 
 
 def validate_version(version: str, contract: EscoContract) -> Check:
@@ -82,11 +72,6 @@ def validate_language(lang: str, contract: EscoContract) -> Check:
             else f"Language '{lang}' not in {contract.supported_languages}"
         ),
     )
-
-
-# ---------------------------------------------------------------------------
-# ZIP-level validation
-# ---------------------------------------------------------------------------
 
 
 def _read_csv_header(zf: zipfile.ZipFile, filename: str) -> list[str] | None:
@@ -182,11 +167,6 @@ def validate_zip(
                 )
 
     return result
-
-
-# ---------------------------------------------------------------------------
-# Full validation pipeline
-# ---------------------------------------------------------------------------
 
 
 def validate_artifact(

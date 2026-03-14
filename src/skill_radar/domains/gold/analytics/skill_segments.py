@@ -1,18 +1,9 @@
 """Gold skill demand segmentation — KMeans clustering via Spark MLlib.
 
 Grain: one row per (ingestion_date, country, esco_skill_concept_uri).
-
-Uses KMeans clustering on demand features (jobs_count, unique_companies_count,
-unique_locations_count) to assign each skill to a market segment:
-
-- **niche** — low demand, few employers
-- **growing** — moderate demand, expanding
-- **established** — solid demand across employers/locations
-- **dominant** — highest demand, ubiquitous
-
-The segment assignment is auxiliary — if fewer than ``min_rows`` skills
-exist for a given partition, segmentation is skipped and all skills are
-labelled ``"unclustered"``.
+Assigns each skill to a market segment (niche/growing/established/dominant)
+based on demand features.  Falls back to ``"unclustered"`` when
+``min_rows`` is not met.
 """
 
 from __future__ import annotations

@@ -1,18 +1,4 @@
-"""Index naming — single source of truth for Elasticsearch index names.
-
-Strategy
---------
-Stable logical **aliases** plus date-versioned **physical indices** for
-safe publish / reindex:
-
-- Physical index:  ``{prefix}-{dataset}-{country}-{date}``
-  e.g. ``skillradar-skill-demand-daily-fr-2026.03.06``
-- Alias:           ``{prefix}-{dataset}-{country}``
-  e.g. ``skillradar-skill-demand-daily-fr``
-
-The alias always points to the latest successfully-published physical
-index, enabling atomic swaps and zero-downtime reindexing.
-"""
+"""Index naming — single source of truth for Elasticsearch index names."""
 
 from __future__ import annotations
 

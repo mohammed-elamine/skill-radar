@@ -1,31 +1,13 @@
 """Adzuna Daily Pipeline DAG.
 
 Orchestrates the full Adzuna data pipeline for a single logical date
-using **coarse stage units** — each task bundles processing + validation
-in a single Spark session to minimise container overhead:
+using coarse stage units:
 
     adzuna_bronze_unit → adzuna_silver_unit → gold_unit [→ search_unit]
 
-Schedule
---------
-Configurable via ``SKILLRADAR_ADZUNA_SCHEDULE`` (default: ``0 6 * * *``).
-``catchup=False`` by default — backfills must be triggered explicitly.
-
-Execution model
----------------
-Every task launches an **ephemeral container** from the Spark runtime image
-via ``DockerOperator`` and calls ``skill-radar run <stage-unit> --quiet``
-which performs both data processing and validation within one JVM/Spark
-session.
-
-Parameters
-----------
-All pipeline parameters are derived from centralized configuration
-(:mod:`_shared.config`) and the Airflow **logical date** (``{{ ds }}``).
-No hidden defaults or hardcoded values exist in this file.
+Schedule: ``SKILLRADAR_ADZUNA_SCHEDULE`` (default: ``0 6 * * *``).
+``catchup=False`` by default.
 """
-
-from __future__ import annotations
 
 from datetime import datetime
 
@@ -45,10 +27,6 @@ from _shared.defaults import COMMON_DEFAULT_ARGS, dag_tags
 from _shared.docker_tasks import make_skill_radar_task
 from _shared.templates import partition_date_macro
 from airflow.models.dag import DAG
-
-# ---------------------------------------------------------------------------
-# DAG-level configuration
-# ---------------------------------------------------------------------------
 
 _DS = partition_date_macro()  # "{{ ds }}" — resolved at runtime
 
@@ -75,10 +53,6 @@ Each task bundles processing + validation in a single Spark session:
 3. **gold_unit** — matching + analytics against ESCO taxonomy + validate
 4. **search_unit** — export Gold → Elasticsearch + validate (if enabled)
 """
-
-# ---------------------------------------------------------------------------
-# DAG definition
-# ---------------------------------------------------------------------------
 
 with DAG(
     dag_id="adzuna_daily_pipeline",
