@@ -1,28 +1,8 @@
 """Dashboard dataset metadata — single source of truth for Kibana asset generation.
 
 Extends the served dataset registry with Kibana-specific metadata:
-
-- Data view configuration (index pattern, time field)
-- Field roles (dimensions, metrics, filters, identifiers, metadata)
-- Dashboard eligibility and default visualization parameters
-- Human-readable labels and descriptions
-
-This is the **only** place where dashboard field bindings are defined.
-Adding a new dashboard or changing field assignments requires editing
-this file — not the builders or CLI.
-
-Design
-------
-Each :class:`DashboardDatasetMeta` maps one-to-one with a served dataset
-from :mod:`skill_radar.domains.search.datasets` and enriches it with:
-
-- ``fields`` — typed field metadata including aggregation-friendly names
-  (e.g. ``.raw`` sub-fields for text+keyword mappings)
-- ``validate_against_mapping()`` — fails early if fields are missing
-- ``resolve_data_view_*`` — deterministic Kibana data view naming
-
-The registry :data:`DASHBOARD_DATASETS` is consumed by the builder layer
-in :mod:`skill_radar.platform.search.kibana_builders`.
+data view configuration, field roles, dashboard eligibility, and
+human-readable labels.
 """
 
 from __future__ import annotations

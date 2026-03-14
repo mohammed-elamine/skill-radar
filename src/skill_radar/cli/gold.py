@@ -26,11 +26,6 @@ def gold_group() -> None:
     """Gold layer operations (matching / analytics)."""
 
 
-# ---------------------------------------------------------------------------
-# Gold matching
-# ---------------------------------------------------------------------------
-
-
 @gold_group.command()
 @click.option("--ingestion-date", "ingestion_date", required=True, help="Adzuna date YYYY-MM-DD.")
 @click.option("--country", required=True, help="Country code (e.g. fr).")
@@ -94,11 +89,6 @@ def matching(ingestion_date, country, esco_version, esco_lang, job_limit, quiet)
         sys.exit(EXIT_GOLD_ERROR)
     finally:
         spark.stop()
-
-
-# ---------------------------------------------------------------------------
-# Gold analytics
-# ---------------------------------------------------------------------------
 
 
 @gold_group.command()
@@ -166,11 +156,6 @@ def analytics(ingestion_date, country, esco_version, esco_lang, quiet):
         sys.exit(EXIT_GOLD_ERROR)
     finally:
         spark.stop()
-
-
-# ---------------------------------------------------------------------------
-# Gold pipeline (matching + analytics)
-# ---------------------------------------------------------------------------
 
 
 @gold_group.command()

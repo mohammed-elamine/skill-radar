@@ -97,9 +97,6 @@ def get_platform_requirements(config: PlatformSettings) -> PlatformRequirements:
     >>> print(reqs.namespaces)
     ('sr_bronze', 'sr_silver', 'sr_gold')
     """
-    # -------------------------------------------------------------------------
-    # Buckets: combine core buckets + any additional from config
-    # -------------------------------------------------------------------------
     core_buckets = [
         config.storage.s3.bucket,  # lake bucket
         config.logging.logs_bucket,  # logs bucket
@@ -116,9 +113,6 @@ def get_platform_requirements(config: PlatformSettings) -> PlatformRequirements:
             all_buckets.append(b)
             seen.add(b)
 
-    # -------------------------------------------------------------------------
-    # Iceberg: catalog + namespaces from config
-    # -------------------------------------------------------------------------
     iceberg_cfg = config.storage.iceberg
     catalog = iceberg_cfg.catalog_name
 

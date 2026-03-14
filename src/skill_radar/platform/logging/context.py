@@ -45,10 +45,6 @@ class RunContext:
         return {k: v for k, v in asdict(self).items() if v}
 
 
-# ---------------------------------------------------------------------------
-# Module-level context variable
-# ---------------------------------------------------------------------------
-
 _current_context: ContextVar[RunContext | None] = ContextVar(
     "skill_radar_run_context",
     default=None,

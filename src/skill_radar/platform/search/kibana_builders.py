@@ -1,22 +1,8 @@
 """Kibana Lens visualization and dashboard builders.
 
 Constructs saved object payloads from dashboard dataset metadata.
-Each builder function produces Kibana 8.x Lens-format visualization
-states that serialize directly into saved objects for NDJSON export
-or API import.
-
-Architecture
-------------
-- **Low-level** helpers build individual Lens column configurations
-  (count, sum, average, terms, date_histogram, etc.).
-- **Mid-level** helpers compose columns + visualization config into
-  complete Lens states.
-- **High-level** functions build named dashboard suites with explicit
-  panel layouts.
-
 Field bindings come exclusively from
-:mod:`skill_radar.domains.search.kibana_metadata` — builders never
-hardcode field names directly.
+:mod:`skill_radar.domains.search.kibana_metadata`.
 """
 
 from __future__ import annotations

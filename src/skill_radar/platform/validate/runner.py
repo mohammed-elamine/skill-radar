@@ -1,9 +1,4 @@
-"""Validation runner: orchestrates check execution and console output.
-
-This module provides the core validation execution logic:
-- :func:`run_checks`: Execute a list of check functions and aggregate results
-- Clean console output with status symbols and timing
-"""
+"""Validation runner: check execution and console output."""
 
 from __future__ import annotations
 
@@ -21,7 +16,6 @@ C_BOLD = "\033[1m"
 C_DIM = "\033[2m"
 C_GREEN = "\033[1;32m"
 C_RED = "\033[1;31m"
-C_YELLOW = "\033[1;33m"
 C_BLUE = "\033[1;34m"
 
 
@@ -136,28 +130,7 @@ def run_checks(
     fail_fast: bool = False,
     quiet: bool = False,
 ) -> ValidationReport:
-    """Execute a list of named checks and aggregate results.
-
-    Parameters
-    ----------
-    checks:
-        List of NamedCheck objects to execute.
-    validator_name:
-        Name of the validator (e.g. "esco_bronze").
-    run_id:
-        Run ID from logging context (optional).
-    env:
-        Environment name (optional, defaults to SKILLRADAR_ENV).
-    fail_fast:
-        Stop execution on first failure.
-    quiet:
-        Suppress console output.
-
-    Returns
-    -------
-    ValidationReport:
-        Aggregated results of all checks.
-    """
+    """Execute *checks* and return an aggregated :class:`ValidationReport`."""
     resolved_env = env or os.environ.get("SKILLRADAR_ENV", "local")
     resolved_run_id = run_id
 

@@ -1,20 +1,7 @@
 """CLI commands for coarse-grained pipeline stage units.
 
-Each ``run`` sub-command represents **one stage unit** — a logically
-grouped sequence of processing + validation steps that share a single
-Spark/JVM session.  Airflow DAGs call these commands so that only one
-Docker container is launched per stage, eliminating redundant startup
-overhead.
-
-Available units
----------------
-- ``skill-radar run infra``           — infra apply + validate
-- ``skill-radar run esco-bronze``     — (optional landing validation) + bronze extraction + validate bronze
-- ``skill-radar run esco-silver``     — silver formatting + validate silver
-- ``skill-radar run adzuna-bronze``   — bronze extraction + validate bronze
-- ``skill-radar run adzuna-silver``   — silver formatting + validate silver
-- ``skill-radar run gold``            — matching + analytics + validate gold
-- ``skill-radar run search``          — search export + validate search
+Each ``run`` sub-command bundles processing + validation in a single
+Spark session so Airflow needs only one container per stage.
 """
 
 from __future__ import annotations
@@ -43,11 +30,6 @@ from skill_radar.platform.validate.sinks import finalize_report
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _phase_banner(label: str, quiet: bool) -> float:
     """Print a phase header and return the start timestamp."""
     if not quiet:
@@ -61,19 +43,9 @@ def _phase_elapsed(start: float) -> str:
     return f"{elapsed:.1f}s"
 
 
-# ---------------------------------------------------------------------------
-# Command group
-# ---------------------------------------------------------------------------
-
-
 @click.group("run")
 def run_group() -> None:
     """Coarse-grained stage-unit commands (process + validate)."""
-
-
-# ---------------------------------------------------------------------------
-# Runtime diagnostics
-# ---------------------------------------------------------------------------
 
 
 @run_group.command("diagnostics")
@@ -117,11 +89,6 @@ def run_diagnostics() -> None:
     lines.append(f"Python version: {platform.python_version()}")
 
     click.echo("\n".join(lines))
-
-
-# ---------------------------------------------------------------------------
-# Run infra (apply + validate)
-# ---------------------------------------------------------------------------
 
 
 @run_group.command("infra")
@@ -229,11 +196,6 @@ def run_infra(upload: bool, quiet: bool) -> None:
         sys.exit(ExitCode.INFRA_FAILURE)
     else:
         sys.exit(ExitCode.OK)
-
-
-# ---------------------------------------------------------------------------
-# Run ESCO bronze (extraction + validation) - Spark-side only
-# ---------------------------------------------------------------------------
 
 
 @run_group.command("esco-bronze")
@@ -479,11 +441,6 @@ def run_esco_bronze(
             spark.stop()
 
 
-# ---------------------------------------------------------------------------
-# Run Gold pipeline (matching + analytics + validation)
-# ---------------------------------------------------------------------------
-
-
 @run_group.command("gold")
 @click.option("--ingestion-date", "ingestion_date", required=True, help="Adzuna date YYYY-MM-DD.")
 @click.option("--country", required=True, help="Country code (e.g. fr).")
@@ -689,11 +646,6 @@ def run_gold(
             spark.stop()
 
 
-# ---------------------------------------------------------------------------
-# Run Adzuna bronze (extraction + validation)
-# ---------------------------------------------------------------------------
-
-
 @run_group.command("adzuna-bronze")
 @click.option("--preset", default=None, help="Extraction preset name (default: from config).")
 @click.option("--country", default=None, help="Country code override (default: from config).")
@@ -868,11 +820,6 @@ def run_adzuna_bronze(
             spark.stop()
 
 
-# ---------------------------------------------------------------------------
-# Run Adzuna silver (formatting + validation)
-# ---------------------------------------------------------------------------
-
-
 @run_group.command("adzuna-silver")
 @click.option("--country", default=None, help="Country code (default: from config).")
 @click.option(
@@ -1032,11 +979,6 @@ def run_adzuna_silver(
             spark.stop()
 
 
-# ---------------------------------------------------------------------------
-# Run ESCO silver (formatting + validation)
-# ---------------------------------------------------------------------------
-
-
 @run_group.command("esco-silver")
 @click.option("--version", required=True, help="Artifact version (e.g. v1.2.1)")
 @click.option("--lang", required=True, help="Language code (e.g. fr)")
@@ -1192,11 +1134,6 @@ def run_esco_silver(
     finally:
         if spark:
             spark.stop()
-
-
-# ---------------------------------------------------------------------------
-# Run Search (export + validation)
-# ---------------------------------------------------------------------------
 
 
 @run_group.command("search")

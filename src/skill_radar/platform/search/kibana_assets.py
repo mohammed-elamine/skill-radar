@@ -1,15 +1,4 @@
-"""Kibana asset generation — NDJSON artifact writer and import orchestrator.
-
-Composes all saved objects (data views, visualizations, dashboards,
-saved searches) into a complete NDJSON artifact that can be:
-
-1. Written to disk for version control or manual import
-2. Pushed to Kibana via the Saved Objects import API
-
-This module acts as the bridge between the builder layer
-(:mod:`~skill_radar.platform.search.kibana_builders`) and the
-client layer (:mod:`~skill_radar.platform.search.kibana`).
-"""
+"""Kibana asset generation — NDJSON artifact writer and import orchestrator."""
 
 from __future__ import annotations
 

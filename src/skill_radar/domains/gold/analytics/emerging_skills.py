@@ -1,17 +1,8 @@
 """Gold emerging-skill signals — momentum, acceleration, and novelty scores.
 
 Grain: one row per (ingestion_date, country, esco_skill_concept_uri).
-
-Derives three signal scores from the existing ``skill_demand_daily`` table:
-
-- **Momentum** — rank-normalised jobs_count (higher demand → higher score).
-- **Acceleration** — day-over-day increase ratio (positive Δ → higher score).
-  Falls back to 0.0 when the skill has no prior-day record.
-- **Novelty** — inverse of the number of days the skill has been observed.
-  A skill seen for the first time gets novelty = 1.0.
-
-The **composite** score is a configurable weighted sum of the three signals,
-clamped to [0, 1].
+Composite score is a configurable weighted sum of momentum, acceleration,
+and novelty, clamped to [0, 1].
 """
 
 from __future__ import annotations

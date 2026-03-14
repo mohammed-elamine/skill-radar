@@ -1,16 +1,7 @@
 """Kibana dashboard orchestrator — generate, apply, export, validate.
 
-High-level workflow for managing Kibana assets:
-
-- **generate**: Build NDJSON artifacts from code (deterministic)
-- **apply**: Push generated assets to Kibana via import API
-- **bootstrap**: ensure data views + dashboards exist in Kibana
-
-This orchestrator delegates to:
-
-- :mod:`~skill_radar.platform.search.kibana_assets` for generation
-- :mod:`~skill_radar.platform.search.kibana` for API communication
-- :mod:`~skill_radar.domains.search.kibana_metadata` for metadata
+Delegates to kibana_assets for generation, kibana for API communication,
+and kibana_metadata for field bindings.
 """
 
 from __future__ import annotations

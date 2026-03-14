@@ -27,11 +27,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Bronze required columns
-# ---------------------------------------------------------------------------
-
 BRONZE_JOBS_RAW_REQUIRED = [
     "job_id",
     "adref",
@@ -83,10 +78,6 @@ BRONZE_REQUEST_LOG_REQUIRED = [
     "ingestion_date",
 ]
 
-# ---------------------------------------------------------------------------
-# Silver required columns
-# ---------------------------------------------------------------------------
-
 SILVER_JOBS_REQUIRED = [
     "job_id",
     "adref",
@@ -130,11 +121,6 @@ SILVER_JOBS_REQUIRED = [
     "formatted_at_utc",
     "ingestion_date",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Bronze checks
-# ---------------------------------------------------------------------------
 
 
 def _check_job_id_population(spark: SparkSession, table_fqn: str) -> CheckResult:
@@ -214,11 +200,6 @@ def _check_raw_payload_parseable(spark: SparkSession, table_fqn: str) -> CheckRe
 # Default lineage columns per layer.
 _BRONZE_LINEAGE_COLS = ["source_system", "country", "run_id", "ingestion_date"]
 _SILVER_LINEAGE_COLS = ["source_system", "country", "silver_run_id", "ingestion_date"]
-
-
-# ---------------------------------------------------------------------------
-# Partition-scoping helper
-# ---------------------------------------------------------------------------
 
 
 def _silver_partition_df(
@@ -377,11 +358,6 @@ def get_bronze_checks(
     ]
 
     return checks
-
-
-# ---------------------------------------------------------------------------
-# Silver checks
-# ---------------------------------------------------------------------------
 
 
 def _check_silver_key_population(

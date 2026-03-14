@@ -128,7 +128,7 @@ services:
   # -----------------------------
   # Airflow is the control-plane orchestrator. It does NOT run Spark/Java
   # itself — it launches ephemeral containers from the Spark image via
-  # DockerOperator. See docs/airflow_orchestration_guide.md for details.
+  # DockerOperator. See docs/platform/airflow.md for details.
   #
   # Shared environment block (YAML anchor) for all Airflow services.
   # Contains Airflow core config + env vars forwarded to DAG code.

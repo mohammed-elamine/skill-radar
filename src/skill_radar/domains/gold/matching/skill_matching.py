@@ -1,28 +1,9 @@
 """Gold skill matching — candidate-based deterministic matching.
 
-Primary matching engine
------------------------
 Matches ESCO skill labels against Adzuna job text by equi-joining
-**bounded n-gram candidate phrases** (from job text) to the **ESCO label
-dimension** (from Silver skills) on ``candidate_phrase == label_normalized``.
-
-This replaces the previous broadcast cross-join + regex strategy as the
-default execution path.  The equi-join approach:
-
-- Leverages Spark's hash-join optimizer instead of O(jobs x labels) regex
-- Inherits natural word-boundary semantics from whitespace-tokenized n-grams
-- Keeps scoring, deduplication, and output schema identical to the prior version
-
-Regex fallback
---------------
-The legacy regex helpers (:func:`build_match_regex_pattern`,
-:func:`normalize_label`) are retained for narrow fallback use.  They are
-**not** invoked by the default matching path and can be enabled via
-:func:`match_jobs_to_skills_regex` for diagnostics or edge-case coverage.
-
-Grain of output
-- one row per (job_id, country, ingestion_date,
-  esco_skill_concept_uri, match_method).
+bounded n-gram candidate phrases to the ESCO label dimension on
+``candidate_phrase == label_normalized``.  Replaces the previous
+broadcast cross-join + regex strategy as the default execution path.
 """
 
 from __future__ import annotations

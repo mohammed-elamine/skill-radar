@@ -1,12 +1,4 @@
-"""Validation models: CheckResult, ValidationReport, enums, and exit codes.
-
-This module provides the core data structures for validation results:
-- :class:`CheckStatus`: Pass/fail/warn/skip status for individual checks
-- :class:`CheckResult`: Result of a single validation check
-- :class:`NamedCheck`: A check definition with identity (name, description, callable)
-- :class:`ValidationReport`: Aggregated result of a validation run
-- :class:`ExitCode`: Consistent exit codes by failure type
-"""
+"""Validation models: CheckResult, ValidationReport, enums, and exit codes."""
 
 from __future__ import annotations
 
@@ -67,25 +59,7 @@ class ExitCode(IntEnum):
 
 @dataclass
 class CheckResult:
-    """Result of a single validation check.
-
-    Attributes
-    ----------
-    name:
-        Stable identifier (e.g. "landing.manifest.exists").
-    description:
-        Human-readable description of the check.
-    status:
-        Pass/fail/warn/skip status.
-    detail:
-        Optional short detail message (keep small).
-    metrics:
-        Optional dict with numeric metrics (e.g. row_count).
-    started_at_utc:
-        When the check started.
-    duration_ms:
-        How long the check took.
-    """
+    """Result of a single validation check."""
 
     name: str
     description: str
@@ -104,29 +78,7 @@ class CheckResult:
 
 @dataclass(frozen=True)
 class NamedCheck:
-    """A check definition with identity preserved.
-
-    Use this to pass checks to `run_checks()` so that the runner can always
-    identify a check by name/description, even when the callable is a lambda.
-
-    Attributes
-    ----------
-    name:
-        Stable identifier for the check (e.g. "infra.minio.reachable").
-    description:
-        Human-readable description of the check.
-    fn:
-        Callable that executes the check and returns a CheckResult.
-
-    Example
-    -------
-    >>> check = NamedCheck(
-    ...     name="infra.minio.reachable",
-    ...     description="MinIO endpoint is reachable",
-    ...     fn=lambda: check_minio_reachable(config),
-    ... )
-    >>> result = check.fn()  # Execute the check
-    """
+    """A check definition with identity (name, description, callable)."""
 
     name: str
     description: str
@@ -139,31 +91,7 @@ class NamedCheck:
 
 @dataclass
 class ValidationReport:
-    """Full validation run report.
-
-    Attributes
-    ----------
-    report_id:
-        Unique short identifier for this report.
-    run_id:
-        Run ID from logging context.
-    validator_name:
-        Name of the validator (e.g. "esco_bronze_e2e").
-    env:
-        Environment (SKILLRADAR_ENV).
-    started_at_utc:
-        When the validation started.
-    finished_at_utc:
-        When the validation finished.
-    duration_ms:
-        Total duration of the validation.
-    status:
-        Overall PASS or FAIL.
-    checks:
-        List of individual check results.
-    artifacts:
-        Dict of artifact paths/keys (e.g. report path, spark log).
-    """
+    """Aggregated result of a validation run."""
 
     validator_name: str
     env: str
@@ -208,18 +136,7 @@ class ValidationReport:
 
 
 def exit_code_for_validator(validator_name: str) -> ExitCode:
-    """Map a validator name to its failure exit code.
-
-    Parameters
-    ----------
-    validator_name:
-        The validator name (e.g. "infra", "esco_landing", "esco_bronze").
-
-    Returns
-    -------
-    ExitCode:
-        The exit code to use on failure for this validator.
-    """
+    """Map a validator name to its failure exit code."""
     if "infra" in validator_name.lower():
         return ExitCode.INFRA_FAILURE
     if "landing" in validator_name.lower():
@@ -247,31 +164,7 @@ def create_check(
     warn: bool = False,
     warn_reason: str = "",
 ) -> CheckResult:
-    """Factory to create a CheckResult with timing.
-
-    This is a convenience function for creating checks with proper status.
-
-    Parameters
-    ----------
-    name:
-        Stable identifier for the check.
-    description:
-        Human-readable description.
-    passed:
-        Whether the check passed (ignored if skip=True).
-    detail:
-        Optional detail message.
-    metrics:
-        Optional metrics dict.
-    skip:
-        Mark as skipped instead of pass/fail.
-    skip_reason:
-        Reason for skipping (overrides detail).
-    warn:
-        Mark as warning instead of pass/fail.
-    warn_reason:
-        Warning message (overrides detail).
-    """
+    """Create a :class:`CheckResult` with proper status and timing."""
     now = datetime.now(UTC).isoformat()
 
     if skip:

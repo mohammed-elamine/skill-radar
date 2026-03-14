@@ -34,11 +34,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_SUPPORTED_SCHEMA_VERSIONS = ["1.0.0", "v1"]
 
 
-# ---------------------------------------------------------------------------
-# Landing Checks
-# ---------------------------------------------------------------------------
-
-
 def check_landing_artifact_exists(
     config: PlatformSettings,
     version: str,
@@ -565,11 +560,6 @@ def get_landing_checks(
     ]
 
 
-# ---------------------------------------------------------------------------
-# Bronze Checks
-# ---------------------------------------------------------------------------
-
-
 def _iceberg_catalog_configured(spark: SparkSession, catalog_name: str) -> bool:
     """Check if Iceberg catalog is configured in Spark."""
     try:
@@ -818,11 +808,6 @@ def get_bronze_checks(
     return checks
 
 
-# ---------------------------------------------------------------------------
-# E2E Bronze Checks (Spark-side only)
-# ---------------------------------------------------------------------------
-
-
 def run_bronze_e2e_checks(
     spark: SparkSession,
     config: PlatformSettings,
@@ -961,11 +946,6 @@ def run_bronze_e2e_checks(
             )
 
     return results
-
-
-# ---------------------------------------------------------------------------
-# Deprecated: run_esco_bronze_e2e (with ZIP path / docker subprocess)
-# ---------------------------------------------------------------------------
 
 
 def run_esco_bronze_e2e(
@@ -1201,11 +1181,6 @@ def run_esco_bronze_e2e(
         )
 
     return results
-
-
-# ---------------------------------------------------------------------------
-# Silver Checks
-# ---------------------------------------------------------------------------
 
 
 def check_silver_table_partition_non_empty(

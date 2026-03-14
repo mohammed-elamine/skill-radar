@@ -21,11 +21,6 @@ def adzuna_group() -> None:
     """Adzuna dataset operations (Bronze / Silver)."""
 
 
-# ---------------------------------------------------------------------------
-# Bronze command
-# ---------------------------------------------------------------------------
-
-
 @adzuna_group.command()
 @click.option(
     "--preset",
@@ -117,11 +112,6 @@ def bronze(preset, country, max_pages, results_per_page, ingestion_date, quiet):
         sys.exit(EXIT_BRONZE_ERROR)
     finally:
         spark.stop()
-
-
-# ---------------------------------------------------------------------------
-# Silver command
-# ---------------------------------------------------------------------------
 
 
 @adzuna_group.command()

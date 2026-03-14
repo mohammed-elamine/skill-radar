@@ -3,22 +3,6 @@
 Produces candidate phrases from Adzuna Silver job ``title_normalized`` and
 ``description_normalized`` columns.  Each candidate is a contiguous n-gram
 (1 to *N* tokens) that can be equi-joined against the ESCO label dimension.
-
-Design goals
-------------
-- **Bounded**: n-gram size is capped by a configurable maximum, typically
-  driven by the maximum token count observed in the ESCO label dimension.
-- **Deterministic**: pure Spark SQL/DataFrame operations, no Python UDFs.
-- **Provenance**: each candidate row carries its ``text_source`` (``title``
-  or ``description``) so that downstream scoring can differentiate.
-- **Efficient**: avoids unbounded token explosion by capping *N* and
-  leveraging ``F.posexplode`` + ``F.slice`` instead of per-row Python loops.
-
-Default cap
------------
-``CANDIDATE_MAX_NGRAM_SIZE`` (6) covers >99 % of ESCO skills labels whose
-longest normalised form rarely exceeds 6 whitespace-delimited tokens.
-The cap can be overridden per-run by passing ``max_ngram_size`` explicitly.
 """
 
 from __future__ import annotations

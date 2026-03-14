@@ -2,24 +2,6 @@
 
 Builds a canonical occupation card per (ingestion_date, country, occupation)
 from existing Gold tables and ESCO Silver dimensions.
-
-Inputs
-------
-- Gold job-occupation matches (partition)
-- Gold job-skill matches (partition)
-- Gold salary-by-skill daily (partition)
-- ESCO Silver occupations (dimension)
-- ESCO Silver relations (dimension)
-- Adzuna Silver jobs (partition)
-
-Output
-------
-One row per occupation with:
-- searchable text (preferred + alt + hidden labels)
-- demand metrics (jobs, companies, locations)
-- salary context
-- top essential / optional skills (JSON)
-- top companies (JSON)
 """
 
 from __future__ import annotations
