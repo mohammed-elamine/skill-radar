@@ -1,14 +1,4 @@
-"""Infrastructure health checks (read-only).
-
-Checks platform components are healthy before running dataset pipelines:
-- MinIO/S3 reachable
-- Required buckets exist
-- Spark session works (skipped if pyspark unavailable)
-- Iceberg configured (skipped if pyspark unavailable)
-- S3A from Spark (skipped if pyspark unavailable)
-
-All checks are read-only - they never create resources.
-"""
+"""Infrastructure health checks (read-only)."""
 
 from __future__ import annotations
 
@@ -29,11 +19,6 @@ if TYPE_CHECKING:
     from skill_radar.config.models import PlatformSettings
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# boto3-based checks (run on host or container)
-# ---------------------------------------------------------------------------
 
 
 def check_minio_reachable(
@@ -191,11 +176,6 @@ def check_s3_buckets_exist(
             passed=False,
             detail=f"{exc} ({endpoint_info})",
         )
-
-
-# ---------------------------------------------------------------------------
-# Spark-based checks (require pyspark, skipped on host)
-# ---------------------------------------------------------------------------
 
 
 def _pyspark_available() -> bool:
@@ -521,11 +501,6 @@ def check_namespaces_exist(config: PlatformSettings) -> CheckResult:
     finally:
         if spark:
             spark.stop()
-
-
-# ---------------------------------------------------------------------------
-# Check collection
-# ---------------------------------------------------------------------------
 
 
 def get_infra_checks_host(

@@ -1,40 +1,12 @@
 """Full End-to-End Pipeline DAG.
 
-Orchestrates the **entire** Skill Radar platform pipeline in one run:
+Orchestrates the entire Skill Radar platform pipeline in one run:
 
     infra_unit ──┬── esco_landing_unit → esco_bronze_unit → esco_silver_unit ──┬── gold_unit [→ search_unit]
                  └── adzuna_bronze_unit → adzuna_silver_unit ─────────────────┘
 
-Gold waits for **both** ESCO Silver and Adzuna Silver to succeed before
-starting, enabling maximum parallelism during the ingestion phase.
-
-Trigger mode
-------------
-**Manual only** (``schedule=None``).  Trigger via Airflow UI, CLI, or
-the Makefile target ``make airflow-trigger-full``:
-
-.. code-block:: bash
-
-    # Airflow CLI
-    airflow dags trigger full_pipeline \\
-      --conf '{"country": "fr", "ingestion_date": "2026-03-08"}'
-
-    # cURL (Airflow REST API)
-    curl -X POST http://localhost:8080/api/v1/dags/full_pipeline/dagRuns \\
-      -H 'Content-Type: application/json' \\
-      -d '{"conf": {"country": "fr"}}'
-
-Execution model
----------------
-Every task launches an **ephemeral container** from the Spark runtime
-image via ``DockerOperator`` and calls ``skill-radar run <stage-unit>``
-which performs both data processing and validation within one Spark
-session.
-
-Parameters
-----------
-All pipeline parameters have sensible defaults from centralised config.
-Override at trigger time for ad-hoc runs.
+Manual only (``schedule=None``).  Gold waits for both ESCO Silver and
+Adzuna Silver to succeed before starting.
 """
 
 from __future__ import annotations
@@ -55,10 +27,6 @@ from _shared.defaults import COMMON_DEFAULT_ARGS, dag_tags
 from _shared.docker_tasks import make_skill_radar_task
 from airflow.models.dag import DAG
 from airflow.models.param import Param
-
-# ---------------------------------------------------------------------------
-# Documentation
-# ---------------------------------------------------------------------------
 
 _DOC_MD = """\
 ### Full End-to-End Pipeline
@@ -98,10 +66,6 @@ airflow dags trigger full_pipeline \\
 **Airflow Web UI:**
 Trigger DAG → fill in parameters → Trigger.
 """
-
-# ---------------------------------------------------------------------------
-# DAG definition
-# ---------------------------------------------------------------------------
 
 with DAG(
     dag_id="full_pipeline",

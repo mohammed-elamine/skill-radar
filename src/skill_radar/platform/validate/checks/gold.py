@@ -28,11 +28,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Re-export required column lists from gold.schema (single source of truth)
-# ---------------------------------------------------------------------------
-
 SKILL_MATCHES_REQUIRED = gold_schema.SKILL_MATCHES_REQUIRED
 OCCUPATION_MATCHES_REQUIRED = gold_schema.OCCUPATION_MATCHES_REQUIRED
 SKILL_DEMAND_DAILY_REQUIRED = gold_schema.SKILL_DEMAND_DAILY_REQUIRED
@@ -48,11 +43,6 @@ OCCUPATION_TRANSITION_DAILY_REQUIRED = gold_schema.OCCUPATION_TRANSITION_DAILY_R
 
 # Lineage columns common to all Gold tables
 _GOLD_LINEAGE_COLS = gold_schema.GOLD_LINEAGE_COLS
-
-
-# ---------------------------------------------------------------------------
-# Gold-specific check helpers
-# ---------------------------------------------------------------------------
 
 
 def _check_partition_non_empty(
@@ -263,11 +253,6 @@ def _check_co_occurrence_positive(
             passed=False,
             detail=str(exc)[:200],
         )
-
-
-# ---------------------------------------------------------------------------
-# Public check factory
-# ---------------------------------------------------------------------------
 
 
 def get_gold_checks(

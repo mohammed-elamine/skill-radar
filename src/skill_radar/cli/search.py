@@ -28,11 +28,6 @@ def search_group() -> None:
     """Search serving operations (Gold → Elasticsearch)."""
 
 
-# ---------------------------------------------------------------------------
-# search export
-# ---------------------------------------------------------------------------
-
-
 @search_group.command("export")
 @click.option(
     "--dataset",
@@ -160,11 +155,6 @@ def export_cmd(
         spark.stop()
 
 
-# ---------------------------------------------------------------------------
-# search bootstrap-kibana
-# ---------------------------------------------------------------------------
-
-
 @search_group.command("bootstrap-kibana")
 @click.option(
     "--apply/--write-artifacts-only",
@@ -234,11 +224,6 @@ def bootstrap_kibana_cmd(
         click.echo(f"\n  Fatal error: {exc}")
         finalize_logging()
         sys.exit(EXIT_SEARCH_ERROR)
-
-
-# ---------------------------------------------------------------------------
-# search dashboard  (subgroup)
-# ---------------------------------------------------------------------------
 
 
 @search_group.group("dashboard")

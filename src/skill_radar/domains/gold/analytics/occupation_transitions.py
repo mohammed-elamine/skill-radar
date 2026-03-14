@@ -2,30 +2,6 @@
 
 Computes transition guidance between occupation pairs: shared skills,
 missing skills, difficulty score, and market context (salary/jobs delta).
-
-Algorithm
----------
-1. Build per-occupation skill sets from ESCO Silver relations (essential
-   and optional separately).
-2. For each (from, to) pair, compute:
-   - shared skills = intersection
-   - missing skills = target - source
-   - missing essential = essential(target) - all(source)
-   - missing optional = optional(target) - all(source)
-   - difficulty = w_essential * |missing_essential| + w_optional * |missing_optional|
-3. Enrich with salary/jobs context from occupation profiles.
-
-Inputs
-------
-- ESCO Silver relations (dimension)
-- ESCO Silver occupations (dimension, for labels)
-- ESCO Silver skills (dimension, for labels in JSON)
-- Gold occupation_profile_daily (for salary/jobs context)
-
-Output
-------
-One row per (from_occupation, to_occupation) pair with
-transition analysis and market context.
 """
 
 from __future__ import annotations

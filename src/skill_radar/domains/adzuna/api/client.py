@@ -1,13 +1,7 @@
 """Adzuna REST API client — synchronous, pagination-aware.
 
-Responsibilities:
-- Construct authenticated Adzuna requests
-- Handle pagination across result pages
-- Retry transient failures with bounded exponential backoff
-- Return parsed JSON payloads
-- Capture request parameters for lineage
-
-This module has **no** Spark dependency and **no** persistence logic.
+Handles authenticated requests, pagination, and bounded retries.
+No Spark dependency, no persistence logic.
 """
 
 from __future__ import annotations
@@ -32,11 +26,6 @@ from .errors import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Result data classes
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -83,11 +72,6 @@ class SearchResult:
             "success": self.success,
             "error_message": self.error_message,
         }
-
-
-# ---------------------------------------------------------------------------
-# Client
-# ---------------------------------------------------------------------------
 
 
 class AdzunaClient:

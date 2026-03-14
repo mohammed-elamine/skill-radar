@@ -139,10 +139,6 @@ class S3Client:
             raise UploadError(f"Upload failed for {key}: {exc}") from exc
 
 
-# ---------------------------------------------------------------------------
-# Client factory functions for different use cases
-# ---------------------------------------------------------------------------
-
 # Timeout configurations for different purposes
 _HEALTHCHECK_TIMEOUTS = BotoConfig(
     connect_timeout=2,

@@ -1,50 +1,12 @@
 """ESCO Manual Pipeline DAG.
 
 Orchestrates ESCO processing after a manual artifact upload using
-**coarse stage units** — each task bundles processing + validation
+coarse stage units — each task bundles processing + validation
 in a single Spark session:
 
     esco_bronze_unit → esco_silver_unit [→ gold_unit]
 
-Trigger mode
-------------
-**Manual only** (``schedule=None``).  Trigger via Airflow UI or CLI with
-runtime parameters.
-
-Runtime parameters
-------------------
-version : str (required)
-    ESCO version identifier (e.g. ``v1.2.1``).
-lang : str (required)
-    Language code (e.g. ``fr``).
-run_gold_after : bool (default from config, typically ``false``)
-    Whether to trigger Gold recompute after Silver completes.
-    Gold recompute requires Adzuna Silver data to exist for the
-    target date.  Disabled by default for safety — enable explicitly
-    when you are sure Adzuna data is available.
-validate_landing_first : bool (default ``true``)
-    Whether to run landing validation before Bronze extraction.
-    Passed as ``--validate-landing`` to the bronze stage unit.
-
-Design decision — Gold recompute
----------------------------------
-Gold recompute is **optional and disabled by default** for the manual
-ESCO DAG because:
-
-- ESCO is a static taxonomy; reprocessing it does not imply new Adzuna
-  data is available.
-- Gold requires both ESCO Silver *and* Adzuna Silver as inputs.
-- Running Gold without fresh Adzuna data would produce stale results.
-
-Enable ``run_gold_after=true`` only when you explicitly want to
-recompute Gold against the latest available Adzuna partition.
-
-Design decision — coarse stage units
---------------------------------------
-The previous version spawned 8 separate containers (one per step +
-validation).  This version reduces it to 2-3 by grouping each
-processing step with its validation inside a ``skill-radar run``
-command that shares a single Spark session.
+Manual only (``schedule=None``).  Trigger via Airflow UI or CLI.
 """
 
 from __future__ import annotations
@@ -62,10 +24,6 @@ from _shared.defaults import COMMON_DEFAULT_ARGS, dag_tags
 from _shared.docker_tasks import make_skill_radar_task
 from airflow.models.dag import DAG
 from airflow.models.param import Param
-
-# ---------------------------------------------------------------------------
-# Documentation
-# ---------------------------------------------------------------------------
 
 _DOC_MD = """\
 ### ESCO Manual Pipeline
@@ -108,10 +66,6 @@ ESCO is static; Gold requires both ESCO + Adzuna Silver.
 Running Gold without fresh Adzuna data produces stale results.
 Only enable `run_gold_after` when Adzuna data is available.
 """
-
-# ---------------------------------------------------------------------------
-# DAG definition
-# ---------------------------------------------------------------------------
 
 with DAG(
     dag_id="esco_manual_pipeline",

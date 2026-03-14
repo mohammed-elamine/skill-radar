@@ -1,14 +1,4 @@
-"""Skill Radar CLI entry point.
-
-Usage::
-
-    uv run skill-radar esco upload --version v1.2.1 --lang fr --file /path/to/esco.zip
-    uv run skill-radar validate infra
-    uv run skill-radar validate esco-landing --version v1.2.0 --lang fr
-    uv run skill-radar infra apply
-    uv run skill-radar run infra
-    uv run skill-radar search export --ingestion-date 2026-03-06 --country fr
-"""
+"""Skill Radar CLI entry point."""
 
 from __future__ import annotations
 

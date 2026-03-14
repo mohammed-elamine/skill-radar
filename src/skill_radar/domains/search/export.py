@@ -1,21 +1,8 @@
 """Search export orchestrator — Gold Iceberg → Elasticsearch.
 
-This module is the main entry point for the search serving stage.  It
-reads Gold Iceberg tables, transforms rows into Elasticsearch documents,
-and bulk-indexes them with idempotent semantics.
-
-Publish strategy
-----------------
-For each dataset and partition (ingestion_date, country):
-
-1. Build a date-versioned physical index name.
-2. Create the index with explicit mappings if it doesn't exist.
-3. Delete any existing documents for the target partition (safe rerun).
-4. Bulk index all documents with deterministic ``doc_id`` values.
-5. Refresh the index.
-6. Point the stable alias to the physical index (atomic swap).
-
-This ensures idempotent reruns without duplicates.
+Reads Gold Iceberg tables, transforms rows into Elasticsearch documents,
+and bulk-indexes them with idempotent semantics (partition delete +
+re-index + alias swap).
 """
 
 from __future__ import annotations

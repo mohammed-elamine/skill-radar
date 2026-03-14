@@ -1,20 +1,7 @@
 """ESCO Silver formatting — Bronze → Silver Iceberg pipeline.
 
-This module contains the main silver formatting logic. It reads from Bronze
-Iceberg tables and writes typed + normalized Silver tables.
-
-Responsibilities
-----------------
-1. Read Bronze tables via :class:`LakeLayout`.
-2. Apply text normalization (trim + collapse whitespace).
-3. Split newline-separated labels into arrays.
-4. Parse modified_date string to date type.
-5. Extract UUIDs from URIs.
-6. Deduplicate by canonical keys.
-7. Write to Silver Iceberg tables with partition-level idempotency.
-
-The module has **no** hardcoded bucket names, paths, or table names — it
-delegates everything to platform agents (:class:`LakeLayout`).
+Reads from Bronze Iceberg tables and writes typed + normalized Silver
+tables with deduplication and partition-level idempotency.
 """
 
 from __future__ import annotations

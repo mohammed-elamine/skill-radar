@@ -14,20 +14,12 @@ from skill_radar.platform.logging import finalize_logging, init_logging, set_con
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Exit codes
-# ---------------------------------------------------------------------------
 EXIT_SUCCESS = 0
 EXIT_VALIDATION_FAILURE = 2
 EXIT_UPLOAD_ERROR = 3
 EXIT_IDEMPOTENCY_CONFLICT = 4
 EXIT_FILE_NOT_FOUND = 6
 
-
-# ---------------------------------------------------------------------------
-# Dropzone file resolution
-# ---------------------------------------------------------------------------
 DEFAULT_DROPZONE_DIR = "/opt/skillradar/incoming"
 
 
@@ -112,11 +104,6 @@ def _format_missing_file_error(dropzone_dir: Path, version: str, lang: str) -> s
         lines.append(f"  - {candidate}")
 
     return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Command group
-# ---------------------------------------------------------------------------
 
 
 @click.group("esco")
@@ -228,10 +215,6 @@ def upload(
     sys.exit(EXIT_UPLOAD_ERROR)
 
 
-# ---------------------------------------------------------------------------
-# Bronze extraction (delegates to Spark entrypoint logic)
-# ---------------------------------------------------------------------------
-
 EXIT_BRONZE_ERROR = 5
 
 
@@ -328,10 +311,6 @@ def bronze(
     finally:
         spark.stop()
 
-
-# ---------------------------------------------------------------------------
-# Silver formatting (Spark job)
-# ---------------------------------------------------------------------------
 
 EXIT_SILVER_ERROR = 7
 

@@ -1,14 +1,7 @@
 """Adzuna Silver formatting — Bronze → Silver Iceberg pipeline.
 
-Reads from the Bronze ``adzuna_jobs_raw`` table, applies normalization
-and deduplication, and writes a typed Silver ``adzuna_jobs`` table.
-
-Silver design principles:
-- One normalized job fact table for downstream analytics/matching.
-- Strongly typed fields; raw semantics preserved (no NLP).
-- Deduplication by ``(country, job_id)`` keeping latest Bronze record.
-- Partition-overwrite for idempotent reruns (by ``country``, ``ingestion_date``).
-- Adzuna Silver is kept separate from ESCO Silver — Gold joins come later.
+Reads Bronze ``adzuna_jobs_raw``, applies normalization and deduplication,
+and writes a typed Silver ``adzuna_jobs`` table with partition-overwrite.
 """
 
 from __future__ import annotations
@@ -33,11 +26,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Result data classes
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class SilverFormatResult:
     """Outcome of a Silver formatting run."""
@@ -56,11 +44,6 @@ class SilverFormatResult:
 
     def summary_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-# ---------------------------------------------------------------------------
-# Pure normalization helpers (no Spark dependency)
-# ---------------------------------------------------------------------------
 
 
 def _safe_parse_json_array(value: str | None) -> list[str]:
@@ -86,11 +69,6 @@ def _location_hierarchy(area: list[str]) -> tuple[str, str, str]:
     region = area[1] if len(area) > 1 else ""
     subregion = area[2] if len(area) > 2 else ""
     return country, region, subregion
-
-
-# ---------------------------------------------------------------------------
-# Spark UDFs and column transforms
-# ---------------------------------------------------------------------------
 
 
 @F.udf(returnType=T.ArrayType(T.StringType()))
@@ -125,11 +103,6 @@ def _safe_boolean(col_name: str) -> F.Column:
         .when(c.isin("0", "false", "f", "no"), F.lit(False))
         .otherwise(F.lit(None).cast("boolean"))
     )
-
-
-# ---------------------------------------------------------------------------
-# Main Silver transform
-# ---------------------------------------------------------------------------
 
 
 def _transform_bronze_to_silver(
@@ -280,11 +253,6 @@ def _transform_bronze_to_silver(
     )
 
 
-# ---------------------------------------------------------------------------
-# Deduplication
-# ---------------------------------------------------------------------------
-
-
 def _deduplicate_jobs(df: DataFrame) -> DataFrame:
     """Deduplicate Silver jobs by ``(country, job_id)``.
 
@@ -311,11 +279,6 @@ def _deduplicate_jobs(df: DataFrame) -> DataFrame:
     return deduped.unionByName(null_ids) if not null_ids.isEmpty() else deduped
 
 
-# ---------------------------------------------------------------------------
-# Iceberg write
-# ---------------------------------------------------------------------------
-
-
 def _write_silver_table(
     df: DataFrame,
     table_fqn: str,
@@ -335,11 +298,6 @@ def _write_silver_table(
     else:
         logger.info("Overwriting partitions in Silver table: %s", table_fqn)
         df.writeTo(table_fqn).overwritePartitions()
-
-
-# ---------------------------------------------------------------------------
-# Main orchestrator
-# ---------------------------------------------------------------------------
 
 
 def run_silver_format(
@@ -470,11 +428,6 @@ def run_silver_format(
         logger.exception("Silver formatting failed")
 
     return result
-
-
-# ---------------------------------------------------------------------------
-# Run summary upload
-# ---------------------------------------------------------------------------
 
 
 def upload_run_summary(result: SilverFormatResult) -> None:

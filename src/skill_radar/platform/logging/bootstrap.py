@@ -43,37 +43,7 @@ def init_logging(
     env: str | None = None,
     git_sha: str | None = None,
 ) -> RunContext:
-    """Configure the Python logging subsystem for this process.
-
-    Must be called **exactly once** per process.  Subsequent calls are
-    silently ignored to guarantee idempotency.
-
-    Parameters
-    ----------
-    job_name:
-        Human-readable job identifier (e.g. ``esco_intake_upload``).
-    log_dir:
-        Directory for log files.  Defaults to ``$LOG_DIR`` or ``./logs``.
-    level:
-        Root log level.  Defaults to ``$LOG_LEVEL`` or ``INFO``.
-    console_format:
-        ``"text"`` (default) or ``"json"``.
-    file_format:
-        ``"json"`` (default) or ``"text"``.
-    enable_file:
-        Write a log file.  ``False`` disables (useful in unit tests).
-    verbose:
-        If ``True``, lower the console level to ``DEBUG``.
-    env:
-        Environment name override (otherwise ``$SKILLRADAR_ENV``).
-    git_sha:
-        Git commit hash override (otherwise ``$GIT_SHA``).
-
-    Returns
-    -------
-    RunContext
-        The initialised run context.
-    """
+    """Configure Python logging for this process (idempotent, call once)."""
     global _INITIALIZED, _LOGFILE_PATH
 
     if _INITIALIZED:

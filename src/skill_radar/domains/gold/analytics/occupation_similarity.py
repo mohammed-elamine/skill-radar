@@ -2,26 +2,6 @@
 
 Computes pairwise occupation similarity based on ESCO skill-set overlap,
 weighted by relation type (essential skills count more than optional).
-
-Algorithm
----------
-1. Build per-occupation skill sets from ESCO Silver relations, split by
-   relation_type (essential / optional).
-2. For each (source, target) pair, compute weighted Jaccard similarity:
-   ``score = (w_e * shared_essential + w_o * shared_optional) /
-             (w_e * union_essential + w_o * union_optional)``
-3. Exclude self-pairs.
-4. Keep only top-N targets per source occupation (configurable).
-
-Inputs
-------
-- ESCO Silver relations (dimension)
-- ESCO Silver occupations (dimension, for labels)
-
-Output
-------
-One row per (source_occupation, target_occupation) pair with
-similarity score and skill overlap counts.
 """
 
 from __future__ import annotations
